@@ -4,6 +4,7 @@ import logging
 from flask import Flask, request, redirect, session, url_for
 import openai
 
+# Flask setup
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
@@ -11,6 +12,7 @@ logging.basicConfig(level=logging.DEBUG)
 # OpenAI SDK
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# Quiz homepage
 INDEX_HTML = '''
 <html>
 <head>
@@ -54,18 +56,13 @@ def index():
 def start():
     try:
         session.clear()
-        topic = request.form.get('topic', 'language')
-        grade = request.form.get('grade', '3')
-        num = int(request.form.get('num', 1))
-
-        session['topic'] = topic
-        session['grade'] = grade
-        session['num'] = num
+        session['topic'] = request.form.get('topic', 'language')
+        session['grade'] = request.form.get('grade', '3')
+        session['num'] = int(request.form.get('num', 1))
         session['score'] = 0
         session['index'] = 0
         session['difficulty'] = "medium"
         session['questions'] = []
-
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
@@ -79,31 +76,35 @@ def question():
         topic = session.get('topic', 'language')
         grade = session.get('grade', '3')
         difficulty = session.get('difficulty', 'medium')
+        questions = session.get('questions', [])
 
         if index >= num:
             return redirect(url_for('result'))
 
-        prompt = (
-            "Generate 1 {difficulty} SAT-style multiple choice question "
-            "for a grade {grade} student focusing on {topic}. "
-            "Return JSON with 'question', 'choices' (list), and 'answer'."
-        ).format(grade=grade, topic=topic, difficulty=difficulty)
+        # Only generate a new question if we haven't already
+        if len(questions) <= index:
+            prompt = (
+                "Generate 1 {difficulty} SAT-style multiple choice question "
+                "for a grade {grade} student focusing on {topic}. "
+                "Return JSON with 'question', 'choices' (list), and 'answer'."
+            ).format(grade=grade, topic=topic, difficulty=difficulty)
 
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini-2025-04-14",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-        )
-        raw = response.choices[0].message.content.strip()
-        logging.debug("GPT raw response:\n%s", raw)
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini-2025-04-14",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            raw = response.choices[0].message.content.strip()
 
-        if raw.startswith("```"):
-            raw = raw.strip("` \n")
-            if raw.startswith("json"):
-                raw = raw[4:].lstrip()
+            if raw.startswith("```"):
+                raw = raw.strip("` \n")
+                if raw.startswith("json"):
+                    raw = raw[4:].lstrip()
 
-        data = json.loads(raw)
-        session['questions'].append(data)
+            data = json.loads(raw)
+            session['questions'].append(data)
+        else:
+            data = questions[index]
 
         html = f'''
         <html><head><style>
@@ -117,7 +118,7 @@ def question():
         button:hover {{ background-color: #0056b3; }}
         </style></head><body>
         <div class="quiz-box">
-        <h2>Question {index + 1}</h2>
+        <h2>Question {index + 1} of {num}</h2>
         <form action="/answer" method="post">
         <p style="font-size:1.2em;">{data['question']}</p>
         '''
@@ -136,9 +137,13 @@ def question():
 def answer():
     try:
         index = session.get('index', 0)
+        questions = session.get('questions', [])
+
+        if index >= len(questions):
+            return redirect(url_for('result'))
+
         choice = request.form.get('choice')
-        question = session['questions'][index]
-        correct = question['answer']
+        correct = questions[index]['answer']
 
         if choice == correct:
             session['score'] += 1
