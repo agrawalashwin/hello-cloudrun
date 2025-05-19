@@ -62,9 +62,20 @@ def start():
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
-        json_text = response.choices[0].message.content
-        logging.debug("OpenAI raw response: %s", json_text)
-        questions = json.loads(json_text)
+        json_text = response.choices[0].message.content.strip()
+        logging.debug("Raw OpenAI response:\n%s", json_text)
+
+        # Clean up triple backticks and optional ```json block
+        if json_text.startswith("```"):
+            json_text = json_text.strip("` \n")
+            if json_text.startswith("json"):
+                json_text = json_text[4:].lstrip()
+
+        try:
+            questions = json.loads(json_text)
+        except json.JSONDecodeError:
+            return f"<pre>Invalid JSON from OpenAI:\n{json_text}</pre>", 500
+
     except Exception as e:
         logging.exception("Failed to generate questions")
         return f"<pre>OpenAI error: {e}</pre>", 500
