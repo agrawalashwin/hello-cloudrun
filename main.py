@@ -140,17 +140,25 @@ def answer():
         num = session.get('num', 1)
         questions = session.get('questions', [])
 
-        if index >= num:
-            return redirect(url_for('result'))
+        # Guard: don't crash if somehow index > available questions
+        if index >= len(questions):
+            logging.warning("Answer submitted but question not yet generated.")
+            return redirect(url_for('question'))
 
         choice = request.form.get('choice')
         correct = questions[index]['answer']
 
+        # Scoring + difficulty logic
         if choice == correct:
             session['score'] += 1
             session['difficulty'] = "hard" if session['difficulty'] == "medium" else "medium"
         else:
             session['difficulty'] = "easy" if session['difficulty'] == "medium" else "medium"
+
+        # Track difficulty history
+        log = session.get('difficulty_log', [])
+        log.append(session['difficulty'])
+        session['difficulty_log'] = log
 
         session['index'] = index + 1
         return redirect(url_for('question'))
@@ -160,23 +168,78 @@ def answer():
         return f"<pre>/answer error:\n{e}</pre>", 500
 
 
+
 @app.route('/result')
 def result():
     try:
         score = session.get('score', 0)
         total = session.get('num', 1)
+        difficulties = session.get('difficulty_log', [])
+
+        # Fallback if no log is tracked
+        if not difficulties:
+            difficulties = ["medium"] * total
+
+        # Convert difficulty to numeric scale
+        level_map = {"easy": 1, "medium": 2, "hard": 3}
+        level_labels = list(level_map.keys())
+        level_data = [level_map.get(d, 2) for d in difficulties]
+
         return f'''
-        <html><head><style>
-        body {{ font-family: 'Segoe UI', sans-serif; text-align: center; margin-top: 4em; }}
-        h1 {{ font-size: 2em; }}
-        </style></head>
-        <body><h1>Your Score: {score} / {total}</h1>
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+          body {{ font-family: 'Segoe UI', sans-serif; text-align: center; margin-top: 4em; }}
+          h1 {{ font-size: 2em; }}
+          canvas {{ max-width: 600px; margin-top: 2em; }}
+          a {{ display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; }}
+        </style>
+        </head>
+        <body>
+        <h1>Your Score: {score} / {total}</h1>
+
+        <canvas id="difficultyChart" width="600" height="300"></canvas>
+        <script>
+          const ctx = document.getElementById('difficultyChart').getContext('2d');
+          const chart = new Chart(ctx, {{
+            type: 'line',
+            data: {{
+              labels: {list(range(1, len(level_data)+1))},
+              datasets: [{{
+                label: 'Question Difficulty (1=Easy, 3=Hard)',
+                data: {level_data},
+                borderColor: 'rgba(0, 123, 255, 1)',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                fill: true,
+                tension: 0.3
+              }}]
+            }},
+            options: {{
+              scales: {{
+                y: {{
+                  min: 1,
+                  max: 3,
+                  ticks: {{
+                    callback: function(value) {{
+                      return ['','Easy','Medium','Hard'][value];
+                    }},
+                    stepSize: 1
+                  }}
+                }}
+              }}
+            }}
+          }});
+        </script>
+
         <a href="/">Start Over</a>
-        </body></html>
+        </body>
+        </html>
         '''
     except Exception as e:
         logging.exception("Error in /result")
         return f"<pre>/result error:\n{e}</pre>", 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
