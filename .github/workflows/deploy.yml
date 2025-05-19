@@ -1,10 +1,10 @@
-name: Deploy to Cloud Run 
+name: Deploy to Cloud Run
 
 on:
   push:
     branches:
-      - main 
- 
+      - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,13 +19,13 @@ jobs:
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    # Step 2: Set up gcloud CLI (after auth)
+    # Step 2: Set up gcloud CLI
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    # Step 3: Deploy to Cloud Run
+    # Step 3: Deploy to Cloud Run (build from source)
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy hello-cloudrun \
@@ -33,3 +33,11 @@ jobs:
           --region us-central1 \
           --platform managed \
           --allow-unauthenticated
+
+    # Step 4: Inject environment variable into the deployed service
+    - name: Set environment variable
+      run: |
+        gcloud run services update hello-cloudrun \
+          --region us-central1 \
+          --platform managed \
+          --update-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}"
