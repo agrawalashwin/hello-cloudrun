@@ -63,10 +63,12 @@ def start():
         session['index'] = 0
         session['difficulty'] = "medium"
         session['questions'] = []
+        session['difficulty_log'] = []  # ✅ Add this line
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
         return f"<pre>/start error:\n{e}</pre>", 500
+
 
 @app.route('/question')
 def question():
@@ -81,8 +83,8 @@ def question():
         if index >= num:
             return redirect(url_for('result'))
 
-        # Only generate a new question if we haven't already
-        if len(questions) == index:
+        # If question for this index hasn't been generated, generate it
+        if index >= len(questions):
             prompt = (
                 "Generate 1 {difficulty} SAT-style multiple choice question "
                 "for a grade {grade} student focusing on {topic}. "
@@ -102,9 +104,19 @@ def question():
                     raw = raw[4:].lstrip()
 
             data = json.loads(raw)
-            session['questions'].append(data)
+            questions.append(data)
+            session['questions'] = questions
         else:
             data = questions[index]
+
+        # Progress bar
+        progress_percent = int((index + 1) / num * 100)
+        progress_bar = f'''
+        <div style="background: #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 1em;">
+          <div style="width: {progress_percent}%; background: #28a745; height: 20px;"></div>
+        </div>
+        <p>Question {index + 1} of {num}</p>
+        '''
 
         html = f'''
         <html><head><style>
@@ -118,9 +130,9 @@ def question():
         button:hover {{ background-color: #0056b3; }}
         </style></head><body>
         <div class="quiz-box">
-        <h2>Question {index + 1} of {num}</h2>
+        <h2>{data['question']}</h2>
+        {progress_bar}
         <form action="/answer" method="post">
-        <p style="font-size:1.2em;">{data['question']}</p>
         '''
 
         for choice in data['choices']:
@@ -132,6 +144,7 @@ def question():
     except Exception as e:
         logging.exception("Error in /question")
         return f"<pre>/question error:\n{e}</pre>", 500
+
 
 @app.route('/answer', methods=['POST'])
 def answer():
