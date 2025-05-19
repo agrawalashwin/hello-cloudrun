@@ -5,7 +5,6 @@ from flask import Flask, request, redirect, session, url_for
 
 import openai
 
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 
@@ -79,7 +78,6 @@ def start():
     session['questions'] = questions
     session['index'] = 0
     session['score'] = 0
-
     return redirect(url_for('question'))
 
 @app.route('/question')
@@ -98,12 +96,11 @@ def question():
     html += '<p>{}</p>'.format(q['question'])
     for choice in q['choices']:
         html += (
-            f'<label><input type="radio" name="choice" value="{choice}" ' +
-            'required> {} </label><br>'.format(choice)
+            f'<label><input type="radio" name="choice" value="{choice}" '
+            f'required> {choice} </label><br>'
         )
     html += '<button type="submit">Submit</button></form>'
     return html
-
 
 @app.route('/answer', methods=['POST'])
 def answer():
@@ -117,7 +114,6 @@ def answer():
             session['score'] = session.get('score', 0) + 1
         session['index'] = index + 1
     return redirect(url_for('question'))
-
 
 @app.route('/result')
 def result():
