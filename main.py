@@ -3,15 +3,14 @@ import json
 import logging
 import traceback
 from flask import Flask, request
-
 import openai
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
+openai.api_key = "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"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 
 def parse_json_response(text: str):
@@ -67,7 +66,7 @@ def quiz():
     if openai.api_key:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4",  # GPT 4.1 mini placeholder
+                model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
@@ -81,7 +80,6 @@ def quiz():
             logger.debug(traceback.format_exc())
             return "Failed to generate quiz", 500
     else:
-        # Fallback quiz if no API key is provided
         logger.info("Using fallback questions. OPENAI_API_KEY not set.")
         questions = [
             {
@@ -98,7 +96,7 @@ def quiz():
         html += f'<p>{idx + 1}. {q["question"]}</p>'
         for choice in q["choices"]:
             html += (
-                f'<label><input type="radio" name="q{idx}" ' \
+                f'<label><input type="radio" name="q{idx}" '
                 f'value="{choice}" required> {choice}</label><br>'
             )
         html += f'<input type="hidden" name="a{idx}" value="{q["answer"]}">'
