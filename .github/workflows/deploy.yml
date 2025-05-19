@@ -33,3 +33,4 @@ jobs:
           --region us-central1 \
           --platform managed \
           --allow-unauthenticated
+          --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}"
