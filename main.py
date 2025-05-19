@@ -1,12 +1,10 @@
 import os
 import json
 from flask import Flask, request, session, redirect, render_template_string
-
 import openai
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
-
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 INDEX_HTML = """
@@ -59,7 +57,7 @@ def quiz():
     if openai.api_key:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4o",  # GPT-4.1 equivalent
+                model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
@@ -68,7 +66,6 @@ def quiz():
         except Exception:
             return "Failed to generate quiz", 500
     else:
-        # Fallback quiz if no API key is provided
         questions = [
             {
                 "question": "Sample question?",
@@ -82,7 +79,6 @@ def quiz():
     session['current'] = 0
     session['score'] = 0
     return redirect('/question')
-
 
 @app.route('/question', methods=['GET'])
 def question():
@@ -120,7 +116,6 @@ def question():
         total=len(questions),
     )
 
-
 @app.route('/answer', methods=['POST'])
 def answer():
     idx = session.get('current', 0)
@@ -134,7 +129,6 @@ def answer():
     if session['current'] >= len(questions):
         return redirect('/result')
     return redirect('/question')
-
 
 @app.route('/result', methods=['GET'])
 def result():
