@@ -2,16 +2,19 @@ import os
 import json
 import logging
 from flask import Flask, request, redirect, session, url_for
-
 import openai
 
-# Setup app and logging
+# Set up Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Homepage HTML
+# Set up OpenAI client (new SDK pattern)
+client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+# HTML for quiz home page
 INDEX_HTML = '''
 <style>
   body { font-family: Arial, sans-serif; margin: 2em; }
@@ -53,29 +56,18 @@ def start():
         "'choices' (list of options), and 'answer' (the correct option)."
     ).format(grade=grade, topic=topic, num=num)
 
-    if not openai.api_key:
-        logging.warning("OPENAI_API_KEY not set. Using fallback questions.")
-        questions = [
-            {
-                "question": "Sample question?",
-                "choices": ["A", "B", "C", "D"],
-                "answer": "A",
-            }
-            for _ in range(num)
-        ]
-    else:
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4.1-mini-2025-04-14",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-            )
-            json_text = response.choices[0].message["content"]
-            logging.debug("OpenAI raw response: %s", json_text)
-            questions = json.loads(json_text)
-        except Exception as e:
-            logging.exception("Failed to generate questions")
-            return f"<pre>OpenAI error: {e}</pre>", 500
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini-2025-04-14",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        json_text = response.choices[0].message.content
+        logging.debug("OpenAI raw response: %s", json_text)
+        questions = json.loads(json_text)
+    except Exception as e:
+        logging.exception("Failed to generate questions")
+        return f"<pre>OpenAI error: {e}</pre>", 500
 
     session['questions'] = questions
     session['index'] = 0
@@ -93,13 +85,13 @@ def question():
 
     q = questions[index]
     html = '<style>p{font-size:1.4em;} label{font-size:1.2em;}</style>'
-    html += '<h1>Question {}</h1>'.format(index + 1)
+    html += f'<h1>Question {index + 1}</h1>'
     html += '<form action="/answer" method="post">'
-    html += '<p>{}</p>'.format(q['question'])
-    for choice in q['choices']:
+    html += f'<p>{q["question"]}</p>'
+    for choice in q["choices"]:
         html += (
             f'<label><input type="radio" name="choice" value="{choice}" '
-            f'required> {choice} </label><br>'
+            f'required> {choice}</label><br>'
         )
     html += '<button type="submit">Submit</button></form>'
     return html
