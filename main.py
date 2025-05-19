@@ -5,12 +5,13 @@ from flask import Flask, request, redirect, session, url_for
 
 import openai
 
+# Setup app and logging
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
-
 openai.api_key = os.environ.get("OPENAI_API_KEY")
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
+# Homepage HTML
 INDEX_HTML = '''
 <style>
   body { font-family: Arial, sans-serif; margin: 2em; }
@@ -52,20 +53,8 @@ def start():
         "'choices' (list of options), and 'answer' (the correct option)."
     ).format(grade=grade, topic=topic, num=num)
 
-    if openai.api_key:
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4.1-mini-2025-04-14",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-            )
-            json_text = response.choices[0].message["content"]
-            questions = json.loads(json_text)
-        except Exception as e:
-            logging.exception("Failed to generate questions")
-            return "Failed to generate quiz", 500
-    else:
-        # Fallback quiz if no API key is provided
+    if not openai.api_key:
+        logging.warning("OPENAI_API_KEY not set. Using fallback questions.")
         questions = [
             {
                 "question": "Sample question?",
@@ -74,6 +63,19 @@ def start():
             }
             for _ in range(num)
         ]
+    else:
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4.1-mini-2025-04-14",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            json_text = response.choices[0].message["content"]
+            logging.debug("OpenAI raw response: %s", json_text)
+            questions = json.loads(json_text)
+        except Exception as e:
+            logging.exception("Failed to generate questions")
+            return f"<pre>OpenAI error: {e}</pre>", 500
 
     session['questions'] = questions
     session['index'] = 0
