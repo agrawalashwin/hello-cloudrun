@@ -5,7 +5,7 @@ import openai
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+openai.api_key = "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"
 
 INDEX_HTML = """
 <!doctype html>
