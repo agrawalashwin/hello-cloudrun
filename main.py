@@ -57,7 +57,7 @@ def quiz():
     if openai.api_key:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini-2025-04-14",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
