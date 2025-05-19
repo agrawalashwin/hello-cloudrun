@@ -82,7 +82,7 @@ def question():
             return redirect(url_for('result'))
 
         # Only generate a new question if we haven't already
-        if len(questions) <= index:
+        if len(questions) == index:
             prompt = (
                 "Generate 1 {difficulty} SAT-style multiple choice question "
                 "for a grade {grade} student focusing on {topic}. "
