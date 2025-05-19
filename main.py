@@ -137,9 +137,10 @@ def question():
 def answer():
     try:
         index = session.get('index', 0)
+        num = session.get('num', 1)
         questions = session.get('questions', [])
 
-        if index >= len(questions):
+        if index >= num:
             return redirect(url_for('result'))
 
         choice = request.form.get('choice')
@@ -157,6 +158,7 @@ def answer():
     except Exception as e:
         logging.exception("Error in /answer")
         return f"<pre>/answer error:\n{e}</pre>", 500
+
 
 @app.route('/result')
 def result():
