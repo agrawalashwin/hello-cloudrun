@@ -1,35 +1,24 @@
 import os
 import json
 import logging
-import traceback
-from flask import Flask, request
+from flask import Flask, request, redirect, session, url_for
+
 import openai
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
-openai.api_key = "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"
+app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-def parse_json_response(text: str):
-    """Attempt to parse JSON from the API response."""
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1:
-            try:
-                return json.loads(text[start:end + 1])
-            except json.JSONDecodeError:
-                pass
-    return None
 
 INDEX_HTML = '''
+<style>
+  body { font-family: Arial, sans-serif; margin: 2em; }
+  label, button { font-size: 1.2em; }
+  input, select { font-size: 1em; }
+</style>
 <h1>SAT Prep Quiz</h1>
-<form action="/quiz" method="post">
+<form action="/start" method="post">
   <label>Topic:
     <select name="topic">
       <option value="language">Language</option>
@@ -50,8 +39,8 @@ INDEX_HTML = '''
 def index():
     return INDEX_HTML
 
-@app.route('/quiz', methods=['POST'])
-def quiz():
+@app.route('/start', methods=['POST'])
+def start():
     topic = request.form.get('topic', 'language')
     grade = request.form.get('grade', '3')
     num = int(request.form.get('num', 1))
@@ -66,21 +55,17 @@ def quiz():
     if openai.api_key:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4",
+                model="gpt-4.1-mini-2025-04-14",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
             )
-            json_text = response.choices[0].message['content']
-            questions = parse_json_response(json_text)
-            if not questions:
-                raise ValueError("Invalid JSON from API")
-        except Exception as exc:
-            logger.error("OpenAI request failed: %s", exc)
-            logger.debug("Response text: %s", locals().get('json_text'))
-            logger.debug(traceback.format_exc())
+            json_text = response.choices[0].message["content"]
+            questions = json.loads(json_text)
+        except Exception as e:
+            logging.exception("Failed to generate questions")
             return "Failed to generate quiz", 500
     else:
-        logger.info("Using fallback questions. OPENAI_API_KEY not set.")
+        # Fallback quiz if no API key is provided
         questions = [
             {
                 "question": "Sample question?",
@@ -90,28 +75,53 @@ def quiz():
             for _ in range(num)
         ]
 
-    html = '<h1>Answer the Questions</h1>'
-    html += '<form action="/score" method="post">'
-    for idx, q in enumerate(questions):
-        html += f'<p>{idx + 1}. {q["question"]}</p>'
-        for choice in q["choices"]:
-            html += (
-                f'<label><input type="radio" name="q{idx}" '
-                f'value="{choice}" required> {choice}</label><br>'
-            )
-        html += f'<input type="hidden" name="a{idx}" value="{q["answer"]}">'
-    html += f'<input type="hidden" name="count" value="{len(questions)}">'
-    html += '<button type="submit">Submit Answers</button></form>'
+    session['questions'] = questions
+    session['index'] = 0
+    session['score'] = 0
+    return redirect(url_for('question'))
+
+@app.route('/question')
+def question():
+    questions = session.get('questions')
+    index = session.get('index', 0)
+    if questions is None or index is None:
+        return redirect(url_for('index'))
+    if index >= len(questions):
+        return redirect(url_for('result'))
+
+    q = questions[index]
+    html = '<style>p{font-size:1.4em;} label{font-size:1.2em;}</style>'
+    html += '<h1>Question {}</h1>'.format(index + 1)
+    html += '<form action="/answer" method="post">'
+    html += '<p>{}</p>'.format(q['question'])
+    for choice in q['choices']:
+        html += (
+            f'<label><input type="radio" name="choice" value="{choice}" '
+            f'required> {choice} </label><br>'
+        )
+    html += '<button type="submit">Submit</button></form>'
     return html
 
-@app.route('/score', methods=['POST'])
-def score():
-    count = int(request.form.get('count', 0))
-    score_value = 0
-    for i in range(count):
-        if request.form.get(f"q{i}") == request.form.get(f"a{i}"):
-            score_value += 1
-    return f'You scored {score_value} out of {count}.'
+@app.route('/answer', methods=['POST'])
+def answer():
+    questions = session.get('questions')
+    index = session.get('index', 0)
+    if questions is None or index is None:
+        return redirect(url_for('index'))
+    if index < len(questions):
+        choice = request.form.get('choice')
+        if choice == questions[index]['answer']:
+            session['score'] = session.get('score', 0) + 1
+        session['index'] = index + 1
+    return redirect(url_for('question'))
+
+@app.route('/result')
+def result():
+    questions = session.get('questions') or []
+    score_value = session.get('score', 0)
+    total = len(questions)
+    session.clear()
+    return f'<h1>Your Score: {score_value} / {total}</h1>'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
