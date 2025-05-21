@@ -88,22 +88,32 @@ def question():
             prompt = (
                 "Generate 1 {difficulty} SAT-style multiple choice question "
                 "for a grade {grade} student focusing on {topic}. "
-                "Return JSON with 'question', 'choices' (list), and 'answer'."
+                "Vary style and subtopics each time. "
+                "Return JSON with keys 'question', 'choices' (list), 'answer', "
+                "and 'concepts' (list of concepts tested)."
             ).format(grade=grade, topic=topic, difficulty=difficulty)
 
-            response = client.chat.completions.create(
-                model="gpt-4.1-mini-2025-04-14",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-            )
-            raw = response.choices[0].message.content.strip()
+            attempts = 0
+            while True:
+                response = client.chat.completions.create(
+                    model="gpt-4.1-mini-2025-04-14",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.9,
+                )
+                raw = response.choices[0].message.content.strip()
 
-            if raw.startswith("```"):
-                raw = raw.strip("` \n")
-                if raw.startswith("json"):
-                    raw = raw[4:].lstrip()
+                if raw.startswith("```"):
+                    raw = raw.strip("` \n")
+                    if raw.startswith("json"):
+                        raw = raw[4:].lstrip()
 
-            data = json.loads(raw)
+                data = json.loads(raw)
+                if not any(q.get('question') == data.get('question') for q in questions):
+                    break
+                attempts += 1
+                if attempts >= 5:
+                    break
+
             questions.append(data)
             session['questions'] = questions
         else:
@@ -126,12 +136,14 @@ def question():
         form {{ margin-top: 1em; }}
         label {{ font-size: 1.1em; display: block; text-align: left; padding: 0.5em; }}
         input[type="radio"] {{ margin-right: 10px; }}
+        .concept-box {{ background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }}
         button {{ margin-top: 1em; font-size: 1.1em; padding: 10px 20px; background: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }}
         button:hover {{ background-color: #0056b3; }}
         </style></head><body>
         <div class="quiz-box">
         <h2>{data['question']}</h2>
         {progress_bar}
+        <div class="concept-box"><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
         <form action="/answer" method="post">
         '''
 
