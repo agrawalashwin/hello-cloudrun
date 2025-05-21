@@ -111,7 +111,7 @@ button:hover {{ background-color:#0056b3; }}
 </div>
 </body>
 </html>
-"""
+'''
 
 @app.route('/')
 def index():
@@ -130,6 +130,7 @@ def start():
         session['difficulty_log'] = []
         session['used_concepts'] = []
         session['answer_log'] = []
+        session['difficulty'] = 'medium'
 
         return redirect(url_for('question'))
     except Exception as e:
@@ -141,6 +142,9 @@ def question():
     try:
         index = session.get('index', 0)
         num = session.get('num', 1)
+        grade = session.get('grade', '3')
+        topic = session.get('topic', 'language')
+        difficulty = session.get('difficulty', 'medium')
 
         questions = session.get('questions', [])
         used_concepts = session.get('used_concepts', [])
@@ -148,9 +152,7 @@ def question():
         if index >= num:
             return redirect(url_for('result'))
 
-        # Generate a new question if needed
         if index >= len(questions):
-            used_concepts = session.get('used_concepts', [])
             used_questions = [q.get('question') for q in questions]
             data = generate_question(grade, topic, difficulty, used_concepts, used_questions)
             questions.append(data)
@@ -159,7 +161,6 @@ def question():
             session['used_concepts'] = used_concepts
         else:
             data = questions[index]
-
 
         progress_percent = int((index + 1) / num * 100)
         progress_bar = f"""
@@ -170,25 +171,25 @@ def question():
         """
 
         html = f"""
-<html><head>
-<meta name='viewport' content='width=device-width, initial-scale=1'>
-<style>
-{GLOBAL_STYLES}
-h2 {{ font-size:1.5em; margin-bottom:1em; }}
-form {{ margin-top:1em; }}
-label {{ font-size:1.1em; display:block; text-align:left; padding:0.5em; }}
-input[type='radio'] {{ margin-right:10px; }}
-.concept-box {{ background:#e9ecef; padding:0.5em; border-radius:6px; margin:1em 0; text-align:left; }}
-button {{ margin-top:1em; font-size:1.1em; padding:10px 20px; background:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
-button:hover {{ background-color:#0056b3; }}
-</style>
-</head><body>
-{NAV_BAR}
-<div class='quiz-box'>
-<h2>{data['question']}</h2>
-{progress_bar}
-<div class='concept-box'><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
-<form action='/answer' method='post'>
+        <html><head>
+        <meta name='viewport' content='width=device-width, initial-scale=1'>
+        <style>
+        {GLOBAL_STYLES}
+        h2 {{ font-size:1.5em; margin-bottom:1em; }}
+        form {{ margin-top:1em; }}
+        label {{ font-size:1.1em; display:block; text-align:left; padding:0.5em; }}
+        input[type='radio'] {{ margin-right:10px; }}
+        .concept-box {{ background:#e9ecef; padding:0.5em; border-radius:6px; margin:1em 0; text-align:left; }}
+        button {{ margin-top:1em; font-size:1.1em; padding:10px 20px; background:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
+        button:hover {{ background-color:#0056b3; }}
+        </style></head><body>
+        {NAV_BAR}
+        <div class='quiz-box'>
+        <h2>{data['question']}</h2>
+        {progress_bar}
+        <div class='concept-box'><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
+        <form action='/answer' method='post'>
+
         """
         for choice in data['choices']:
             html += f"<label><input type='radio' name='choice' value='{choice}' required> {choice}</label>"
@@ -290,12 +291,6 @@ def result():
         {NAV_BAR}
         <h1>Your Score: {score} / {total}</h1>
 
-        <table class="summary">
-          <tr><th>Question</th><th>Your Answer</th><th>Correct</th><th>Explanation</th></tr>
-
-          {rows}
-        </table>
-
         <canvas id="difficultyChart" width="600" height="300"></canvas>
         <script>
           const ctx = document.getElementById('difficultyChart').getContext('2d');
@@ -328,6 +323,12 @@ def result():
             }}
           }});
         </script>
+
+        <table class="summary">
+          <tr><th>Question</th><th>Your Answer</th><th>Correct</th><th>Explanation</th></tr>
+
+          {rows}
+        </table>
 
         <a href="/">Start Over</a>
         </body>
