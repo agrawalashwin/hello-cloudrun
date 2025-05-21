@@ -340,5 +340,4 @@ def result():
         return f"<pre>/result error:\n{e}</pre>", 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
