@@ -4,12 +4,10 @@ import logging
 from flask import Flask, request, redirect, session, url_for
 import openai
 
-# Flask setup
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 
-# OpenAI SDK
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
@@ -55,37 +53,37 @@ def generate_question(topic, grade, difficulty, used_questions, used_concepts):
 INDEX_HTML = '''
 <html>
 <head>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
 <style>
-  body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; padding: 2em; text-align: center; }
-  .quiz-box { background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
-  h1 { font-size: 2em; margin-bottom: 0.5em; }
-  label, select, input, button { font-size: 1.1em; margin-top: 10px; display: block; width: 100%; padding: 8px; }
-  button { background-color: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }
-  button:hover { background-color: #0056b3; }
+{GLOBAL_STYLES}
+label, select, input, button {{ font-size: 1.1em; margin-top:10px; display:block; width:100%; padding:8px; }}
+button {{ background-color:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
+button:hover {{ background-color:#0056b3; }}
 </style>
 </head>
 <body>
-  <div class="quiz-box">
-    <h1>SAT Prep Quiz</h1>
-    <form action="/start" method="post">
-      <label>Topic:
-        <select name="topic">
-          <option value="language">Language</option>
-          <option value="math">Math</option>
-        </select>
-      </label>
-      <label>Grade:
-        <input type="number" name="grade" min="1" max="12" required>
-      </label>
-      <label>Number of questions:
-        <input type="number" name="num" min="1" max="10" required>
-      </label>
-      <button type="submit">Start Quiz</button>
-    </form>
-  </div>
+{NAV_BAR}
+<div class='quiz-box'>
+  <h1>Welcome to Ari and Rishu SAT Prep App</h1>
+  <form action='/start' method='post'>
+    <label>Topic:
+      <select name='topic'>
+        <option value='language'>Language</option>
+        <option value='math'>Math</option>
+      </select>
+    </label>
+    <label>Grade:
+      <input type='number' name='grade' min='1' max='12' required>
+    </label>
+    <label>Number of questions:
+      <input type='number' name='num' min='1' max='10' required>
+    </label>
+    <button type='submit'>Start Quiz</button>
+  </form>
+</div>
 </body>
 </html>
-'''
+"""
 
 @app.route('/')
 def index():
@@ -118,18 +116,20 @@ def start():
             session['questions'].append(q)
 
         session['difficulty_log'] = difficulties
+
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
         return f"<pre>/start error:\n{e}</pre>", 500
-
 
 @app.route('/question')
 def question():
     try:
         index = session.get('index', 0)
         num = session.get('num', 1)
+
         questions = session.get('questions', [])
+        used_concepts = session.get('used_concepts', [])
 
         if index >= num:
             return redirect(url_for('result'))
@@ -139,11 +139,11 @@ def question():
             return redirect(url_for('result'))
         data = questions[index]
 
-        # Progress bar
+
         progress_percent = int((index + 1) / num * 100)
-        progress_bar = f'''
-        <div style="background: #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 1em;">
-          <div style="width: {progress_percent}%; background: #28a745; height: 20px;"></div>
+        progress_bar = f"""
+        <div style='background:#ddd; border-radius:5px; overflow:hidden; margin-bottom:1em;'>
+          <div style='width:{progress_percent}%; background:#28a745; height:20px;'></div>
         </div>
         <p>Question {index + 1} of {num}</p>
         '''
@@ -167,16 +167,36 @@ def question():
         <form action="/answer" method="post">
         '''
 
+
+
+        html = f"""
+<html><head>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<style>
+{GLOBAL_STYLES}
+h2 {{ font-size:1.5em; margin-bottom:1em; }}
+form {{ margin-top:1em; }}
+label {{ font-size:1.1em; display:block; text-align:left; padding:0.5em; }}
+input[type='radio'] {{ margin-right:10px; }}
+.concept-box {{ background:#e9ecef; padding:0.5em; border-radius:6px; margin:1em 0; text-align:left; }}
+button {{ margin-top:1em; font-size:1.1em; padding:10px 20px; background:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
+button:hover {{ background-color:#0056b3; }}
+</style>
+</head><body>
+{NAV_BAR}
+<div class='quiz-box'>
+<h2>{data['question']}</h2>
+{progress_bar}
+<div class='concept-box'><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
+<form action='/answer' method='post'>
+"""
         for choice in data['choices']:
-            html += f'<label><input type="radio" name="choice" value="{choice}" required> {choice}</label>'
-
-        html += '<button type="submit">Submit</button></form></div></body></html>'
+            html += f"<label><input type='radio' name='choice' value='{choice}' required> {choice}</label>"
+        html += "<button type='submit'>Submit</button></form></div></body></html>"
         return html
-
     except Exception as e:
         logging.exception("Error in /question")
         return f"<pre>/question error:\n{e}</pre>", 500
-
 
 @app.route('/answer', methods=['POST'])
 def answer():
@@ -185,7 +205,6 @@ def answer():
         num = session.get('num', 1)
         questions = session.get('questions', [])
 
-        # Guard: don't crash if somehow index > available questions
         if index >= len(questions):
             logging.warning("Answer submitted but question not yet generated.")
             return redirect(url_for('question'))
@@ -205,14 +224,13 @@ def answer():
         })
         session['answer_log'] = log
 
+
+
         session['index'] = index + 1
         return redirect(url_for('question'))
-
     except Exception as e:
         logging.exception("Error in /answer")
         return f"<pre>/answer error:\n{e}</pre>", 500
-
-
 
 @app.route('/result')
 def result():
@@ -222,7 +240,6 @@ def result():
         difficulties = session.get('difficulty_log', [])
         answers = session.get('answer_log', [])
 
-        # Fallback if no log is tracked
         if not difficulties:
             difficulties = ["medium"] * total
 
@@ -297,10 +314,10 @@ def result():
         </body>
         </html>
         '''
+
     except Exception as e:
         logging.exception("Error in /result")
         return f"<pre>/result error:\n{e}</pre>", 500
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
