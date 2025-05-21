@@ -61,9 +61,11 @@ def start():
         session['num'] = int(request.form.get('num', 1))
         session['score'] = 0
         session['index'] = 0
-        session['difficulty'] = "medium"
+        session['difficulty'] = "easy"
         session['questions'] = []
-        session['difficulty_log'] = []  # ✅ Add this line
+        session['difficulty_log'] = []
+        session['used_concepts'] = []
+        session['answers_log'] = []
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
@@ -77,8 +79,17 @@ def question():
         num = session.get('num', 1)
         topic = session.get('topic', 'language')
         grade = session.get('grade', '3')
-        difficulty = session.get('difficulty', 'medium')
+        # Increase difficulty as the quiz progresses
+        progress = index / num if num else 0
+        if progress < 0.33:
+            difficulty = 'easy'
+        elif progress < 0.66:
+            difficulty = 'medium'
+        else:
+            difficulty = 'hard'
+        session['difficulty'] = difficulty
         questions = session.get('questions', [])
+        used_concepts = session.get('used_concepts', [])
 
         if index >= num:
             return redirect(url_for('result'))
@@ -88,24 +99,43 @@ def question():
             prompt = (
                 "Generate 1 {difficulty} SAT-style multiple choice question "
                 "for a grade {grade} student focusing on {topic}. "
-                "Return JSON with 'question', 'choices' (list), and 'answer'."
-            ).format(grade=grade, topic=topic, difficulty=difficulty)
+                "Avoid using these concepts again: {used}. "
+                "Vary style and subtopics each time. "
+                "Return JSON with keys 'question', 'choices' (list), 'answer', "
+                "'explanation', and 'concepts' (list of concepts tested)."
+            ).format(grade=grade, topic=topic, difficulty=difficulty, used=', '.join(used_concepts) or 'none')
 
-            response = client.chat.completions.create(
-                model="gpt-4.1-mini-2025-04-14",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-            )
-            raw = response.choices[0].message.content.strip()
+            attempts = 0
+            while True:
+                response = client.chat.completions.create(
+                    model="gpt-4.1-mini-2025-04-14",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.9,
+                )
+                raw = response.choices[0].message.content.strip()
 
-            if raw.startswith("```"):
-                raw = raw.strip("` \n")
-                if raw.startswith("json"):
-                    raw = raw[4:].lstrip()
+                if raw.startswith("```"):
+                    raw = raw.strip("` \n")
+                    if raw.startswith("json"):
+                        raw = raw[4:].lstrip()
 
-            data = json.loads(raw)
+                data = json.loads(raw)
+                concepts = data.get('concepts', [])
+                unique_question = not any(q.get('question') == data.get('question') for q in questions)
+                unique_concepts = not any(c in used_concepts for c in concepts)
+                if unique_question and unique_concepts:
+                    break
+                attempts += 1
+                if attempts >= 5:
+                    break
+
             questions.append(data)
             session['questions'] = questions
+            used_concepts.extend(concepts)
+            session['used_concepts'] = used_concepts
+            log = session.get('difficulty_log', [])
+            log.append(difficulty)
+            session['difficulty_log'] = log
         else:
             data = questions[index]
 
@@ -126,12 +156,14 @@ def question():
         form {{ margin-top: 1em; }}
         label {{ font-size: 1.1em; display: block; text-align: left; padding: 0.5em; }}
         input[type="radio"] {{ margin-right: 10px; }}
+        .concept-box {{ background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }}
         button {{ margin-top: 1em; font-size: 1.1em; padding: 10px 20px; background: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }}
         button:hover {{ background-color: #0056b3; }}
         </style></head><body>
         <div class="quiz-box">
         <h2>{data['question']}</h2>
         {progress_bar}
+        <div class="concept-box"><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
         <form action="/answer" method="post">
         '''
 
@@ -161,17 +193,21 @@ def answer():
         choice = request.form.get('choice')
         correct = questions[index]['answer']
 
-        # Scoring + difficulty logic
+        # Scoring
         if choice == correct:
             session['score'] += 1
-            session['difficulty'] = "hard" if session['difficulty'] == "medium" else "medium"
-        else:
-            session['difficulty'] = "easy" if session['difficulty'] == "medium" else "medium"
 
-        # Track difficulty history
-        log = session.get('difficulty_log', [])
-        log.append(session['difficulty'])
-        session['difficulty_log'] = log
+        # Log answer details
+        answers_log = session.get('answers_log', [])
+        explanation = questions[index].get('explanation', '')
+        answers_log.append({
+            'question': questions[index]['question'],
+            'selected': choice,
+            'correct': correct,
+            'explanation': explanation,
+            'concepts': questions[index].get('concepts', [])
+        })
+        session['answers_log'] = answers_log
 
         session['index'] = index + 1
         return redirect(url_for('question'))
@@ -188,6 +224,7 @@ def result():
         score = session.get('score', 0)
         total = session.get('num', 1)
         difficulties = session.get('difficulty_log', [])
+        answers_log = session.get('answers_log', [])
 
         # Fallback if no log is tracked
         if not difficulties:
@@ -198,6 +235,10 @@ def result():
         level_labels = list(level_map.keys())
         level_data = [level_map.get(d, 2) for d in difficulties]
 
+        summary_rows = ''
+        for a in answers_log:
+            summary_rows += f"<tr><td>{a['question']}</td><td>{a['selected']}</td><td>{a['correct']}</td><td>{a['explanation']}</td></tr>"
+
         return f'''
         <html>
         <head>
@@ -207,10 +248,17 @@ def result():
           h1 {{ font-size: 2em; }}
           canvas {{ max-width: 600px; margin-top: 2em; }}
           a {{ display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; }}
+          table {{ width: 100%; border-collapse: collapse; margin-top: 2em; }}
+          th, td {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
         </style>
         </head>
         <body>
         <h1>Your Score: {score} / {total}</h1>
+
+        <table>
+          <tr><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th>Explanation</th></tr>
+          {summary_rows}
+        </table>
 
         <canvas id="difficultyChart" width="600" height="300"></canvas>
         <script>
