@@ -1,343 +1,322 @@
 import os
 import json
 import logging
-from flask import Flask, request, redirect, session, url_for
+
+from flask import (
+    Flask, request, redirect, session,
+    url_for, render_template_string
+)
+from flask_session import Session
 import openai
 
+# ─── App & Session Setup ───────────────────────────────────────────────────────
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
+app.config.update(
+    SECRET_KEY=os.environ.get("FLASK_SECRET", "devsecret"),
+    SESSION_TYPE="filesystem",
+)
+Session(app)
+
 logging.basicConfig(level=logging.DEBUG)
 
-client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Shared styles for all pages including a responsive navigation bar
+
+# ─── Shared Templates & Styles ─────────────────────────────────────────────────
 GLOBAL_STYLES = """
-body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin: 0; padding-top: 60px; text-align: center; }
-.quiz-box { background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
-.navbar { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; background: #007BFF; color: #fff; padding: 0.5em 1em; box-sizing: border-box; }
-.navbar img { width: 40px; height: 40px; margin-right: 10px; }
-.navbar .brand { display: flex; align-items: center; font-weight: bold; font-size: 1.2em; }
-@media (max-width: 600px) {
-    .navbar { flex-direction: column; }
-    body { padding-top: 80px; }
+body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding-top:60px; text-align:center; }
+.quiz-box { background:white; padding:2em; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,0.1); max-width:600px; margin:auto; }
+.navbar { position:fixed; top:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
+           background:#007BFF; color:#fff; padding:0.5em 1em; box-sizing:border-box; }
+.navbar img { width:40px; height:40px; margin-right:10px; }
+.navbar .brand { display:flex; align-items:center; font-weight:bold; font-size:1.2em; }
+@media (max-width:600px) {
+  .navbar { flex-direction:column; }
+  body { padding-top:80px; }
 }
 """
 
-# Navigation bar snippet reused across pages
 NAV_BAR = """
-<nav class='navbar'>
-  <div class='brand'>
-    <img src='https://via.placeholder.com/40' alt='Logo'>
+<nav class="navbar">
+  <div class="brand">
+    <img src="https://via.placeholder.com/40" alt="Logo">
     <span>Ari and Rishu SAT Prep App</span>
   </div>
 </nav>
 """
 
-
-def generate_question(grade, topic, difficulty, used_concepts, used_questions):
-    """Generate a unique question avoiding used concepts and questions."""
-    prompt = (
-        "Generate 1 {difficulty} SAT-style multiple choice question "
-        "for a grade {grade} student focusing on {topic}. "
-        "Avoid these concepts: {concepts}. Vary style and subtopics each time. "
-        "Return JSON with keys 'question', 'choices' (list), 'answer', "
-        "'explanation', and 'concepts' (list)."
-    ).format(
-        grade=grade,
-        topic=topic,
-        difficulty=difficulty,
-        concepts=", ".join(used_concepts) or "none",
-    )
-
-    attempts = 0
-    data = {}
-    while attempts < 5:
-
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini-2025-04-14",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.9,
-        )
-        raw = response.choices[0].message.content.strip()
-
-        if raw.startswith("```"):
-            raw = raw.strip("` \n")
-            if raw.startswith("json"):
-                raw = raw[4:].lstrip()
-        data = json.loads(raw)
-
-        question_text = data.get("question", "")
-        concepts = data.get("concepts", [])
-        if (
-            question_text not in used_questions
-            and not set(concepts).intersection(used_concepts)
-        ):
-            break
-        attempts += 1
-    return data
-
-
-# Quiz homepage
 INDEX_HTML = f"""
+<!doctype html>
 <html>
 <head>
-<meta name='viewport' content='width=device-width, initial-scale=1'>
-<style>
-{GLOBAL_STYLES}
-label, select, input, button {{ font-size: 1.1em; margin-top:10px; display:block; width:100%; padding:8px; }}
-button {{ background-color:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
-button:hover {{ background-color:#0056b3; }}
-</style>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>{GLOBAL_STYLES}
+    label, select, input, button {{ font-size:1.1em; margin-top:10px; display:block; width:100%; padding:8px; }}
+    button {{ background:#007BFF; color:#fff; border:none; border-radius:6px; cursor:pointer; }}
+    button:hover {{ background:#0056b3; }}
+  </style>
 </head>
 <body>
-{NAV_BAR}
-<div class='quiz-box'>
-  <h1>Welcome to Ari and Rishu SAT Prep App</h1>
-  <form action='/start' method='post'>
-    <label>Topic:
-      <select name='topic'>
-        <option value='language'>Language</option>
-        <option value='math'>Math</option>
-      </select>
-    </label>
-    <label>Grade:
-      <input type='number' name='grade' min='1' max='12' required>
-    </label>
-    <label>Number of questions:
-      <input type='number' name='num' min='1' max='10' required>
-    </label>
-    <button type='submit'>Start Quiz</button>
-  </form>
-</div>
+  {NAV_BAR}
+  <div class="quiz-box">
+    <h1>Welcome to Ari and Rishu SAT Prep App</h1>
+    <form action="/start" method="post">
+      <label>Topic:
+        <select name="topic">
+          <option value="language">Language</option>
+          <option value="math">Math</option>
+        </select>
+      </label>
+      <label>Grade:
+        <input type="number" name="grade" min="1" max="12" required>
+      </label>
+      <label>Number of questions:
+        <input type="number" name="num" min="1" max="10" required>
+      </label>
+      <button type="submit">Start Quiz</button>
+    </form>
+  </div>
 </body>
 </html>
-'''
+"""
 
-@app.route('/')
+
+# ─── OpenAI Question Generator ─────────────────────────────────────────────────
+def generate_question(grade, topic, difficulty, used_concepts, used_questions):
+    prompt = (
+        f"Generate 1 {difficulty} SAT-style multiple choice question "
+        f"for a grade {grade} student focusing on {topic}. "
+        f"Avoid these concepts: {', '.join(used_concepts) or 'none'}. "
+        "Return JSON with keys 'question', 'choices' (list), "
+        "'answer', 'explanation', and 'concepts' (list)."
+    )
+
+    for attempt in range(5):
+        try:
+            resp = openai.ChatCompletion.create(
+                model="gpt-4.1-mini-2025-04-14",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.9,
+            )
+            raw = resp.choices[0].message.content.strip()
+            # strip ```json fences if present
+            if raw.startswith("```"):
+                raw = raw.strip("` \n")
+                if raw.startswith("json"):
+                    raw = raw[4:].lstrip()
+            data = json.loads(raw)
+        except Exception:
+            logging.exception("OpenAI parsing failed, retrying...")
+            continue
+
+        txt = data.get("question", "")
+        concepts = data.get("concepts", [])
+        if txt not in used_questions and not set(concepts).intersection(used_concepts):
+            return data
+
+    # fallback if no unique question
+    return {
+        "question": "Something went wrong generating a question.",
+        "choices": ["--"],
+        "answer": "--",
+        "explanation": "",
+        "concepts": []
+    }
+
+
+# ─── Routes ────────────────────────────────────────────────────────────────────
+@app.route("/", methods=["GET"])
 def index():
     return INDEX_HTML
 
-@app.route('/start', methods=['POST'])
+
+@app.route("/start", methods=["POST"])
 def start():
     try:
         session.clear()
-        session['topic'] = request.form.get('topic', 'language')
-        session['grade'] = request.form.get('grade', '3')
-        session['num'] = int(request.form.get('num', 1))
-        session['score'] = 0
-        session['index'] = 0
-        session['questions'] = []
-        session['difficulty_log'] = []
-        session['used_concepts'] = []
-        session['answer_log'] = []
-        session['difficulty'] = 'medium'
-
-        return redirect(url_for('question'))
-    except Exception as e:
+        session.update({
+            "topic": request.form["topic"],
+            "grade": request.form["grade"],
+            "num": int(request.form["num"]),
+            "score": 0,
+            "index": 0,
+            "questions": [],
+            "used_concepts": [],
+            "difficulty_log": [],
+            "answer_log": [],
+            "difficulty": "medium",
+        })
+        return redirect(url_for("question"))
+    except Exception:
         logging.exception("Error in /start")
-        return f"<pre>/start error:\n{e}</pre>", 500
+        return "<pre>/start error</pre>", 500
 
-@app.route('/question')
+
+@app.route("/question", methods=["GET"])
 def question():
     try:
-        index = session.get('index', 0)
-        num = session.get('num', 1)
-        grade = session.get('grade', '3')
-        topic = session.get('topic', 'language')
-        difficulty = session.get('difficulty', 'medium')
+        idx = session["index"]
+        total = session["num"]
+        if idx >= total:
+            return redirect(url_for("result"))
 
-        questions = session.get('questions', [])
-        used_concepts = session.get('used_concepts', [])
-
-        if index >= num:
-            return redirect(url_for('result'))
-
-        if index >= len(questions):
-            used_questions = [q.get('question') for q in questions]
-            data = generate_question(grade, topic, difficulty, used_concepts, used_questions)
-            questions.append(data)
-            session['questions'] = questions
-            used_concepts.extend(data.get('concepts', []))
-            session['used_concepts'] = used_concepts
+        questions = session["questions"]
+        used_concepts = session["used_concepts"]
+        # generate new if needed
+        if idx >= len(questions):
+            prev_qs = [q["question"] for q in questions]
+            q = generate_question(
+                session["grade"], session["topic"],
+                session["difficulty"], used_concepts, prev_qs
+            )
+            questions.append(q)
+            used_concepts += q.get("concepts", [])
+            session["questions"] = questions
+            session["used_concepts"] = used_concepts
         else:
-            data = questions[index]
+            q = questions[idx]
 
-        progress_percent = int((index + 1) / num * 100)
-        progress_bar = f"""
-        <div style='background:#ddd; border-radius:5px; overflow:hidden; margin-bottom:1em;'>
-          <div style='width:{progress_percent}%; background:#28a745; height:20px;'></div>
-        </div>
-        <p>Question {index + 1} of {num}</p>
-        """
-
-        html = f"""
-        <html><head>
-        <meta name='viewport' content='width=device-width, initial-scale=1'>
-        <style>
-        {GLOBAL_STYLES}
-        h2 {{ font-size:1.5em; margin-bottom:1em; }}
-        form {{ margin-top:1em; }}
-        label {{ font-size:1.1em; display:block; text-align:left; padding:0.5em; }}
-        input[type='radio'] {{ margin-right:10px; }}
-        .concept-box {{ background:#e9ecef; padding:0.5em; border-radius:6px; margin:1em 0; text-align:left; }}
-        button {{ margin-top:1em; font-size:1.1em; padding:10px 20px; background:#007BFF; color:white; border:none; border-radius:6px; cursor:pointer; }}
-        button:hover {{ background-color:#0056b3; }}
-        </style></head><body>
-        {NAV_BAR}
-        <div class='quiz-box'>
-        <h2>{data['question']}</h2>
-        {progress_bar}
-        <div class='concept-box'><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
-        <form action='/answer' method='post'>
-
-        """
-        for choice in data['choices']:
-            html += f"<label><input type='radio' name='choice' value='{choice}' required> {choice}</label>"
-        html += "<button type='submit'>Submit</button></form></div></body></html>"
-        return html
-    except Exception as e:
-        logging.exception("Error in /question")
-        return f"<pre>/question error:\n{e}</pre>", 500
-
-@app.route('/answer', methods=['POST'])
-def answer():
-    try:
-        index = session.get('index', 0)
-        num = session.get('num', 1)
-        questions = session.get('questions', [])
-
-        if index >= len(questions):
-            logging.warning("Answer submitted but question not yet generated.")
-            return redirect(url_for('question'))
-
-        choice = request.form.get('choice')
-        correct = questions[index]['answer']
-
-        # Log the answer and explanation
-        answers = session.get('answer_log', [])
-        answers.append({
-            'question': questions[index]['question'],
-            'your_answer': choice,
-            'correct_answer': correct,
-            'explanation': questions[index].get('explanation', '')
-        })
-        session['answer_log'] = answers
-
-        # Scoring + adaptive difficulty
-        difficulty = session.get('difficulty', 'medium')
-        if choice == correct:
-            session['score'] += 1
-            if difficulty == 'easy':
-                difficulty = 'medium'
-            elif difficulty == 'medium':
-                difficulty = 'hard'
-        else:
-            if difficulty == 'hard':
-                difficulty = 'medium'
-            elif difficulty == 'medium':
-                difficulty = 'easy'
-        session['difficulty'] = difficulty
-
-        # Track difficulty history
-        log = session.get('difficulty_log', [])
-        log.append(difficulty)
-        session['difficulty_log'] = log
-
-
-        session['index'] = index + 1
-        return redirect(url_for('question'))
-    except Exception as e:
-        logging.exception("Error in /answer")
-        return f"<pre>/answer error:\n{e}</pre>", 500
-
-@app.route('/result')
-def result():
-    try:
-        score = session.get('score', 0)
-        total = session.get('num', 1)
-        difficulties = session.get('difficulty_log', [])
-        answers = session.get('answer_log', [])
-
-        if not difficulties:
-            difficulties = ["medium"] * total
-
-        # Convert difficulty to numeric scale
-        level_map = {"easy": 1, "medium": 2, "hard": 3}
-        level_labels = list(level_map.keys())
-        level_data = [level_map.get(d, 2) for d in difficulties]
-
-        rows = "".join(
-            f"<tr><td>{a['question']}</td><td>{a['your_answer']}</td><td>{a['correct_answer']}</td><td>{a['explanation']}</td></tr>"
-            for a in answers
-        )
-
-
-        return f'''
+        progress = int((idx + 1) / total * 100)
+        tmpl = f"""
+        <!doctype html>
         <html>
         <head>
-        <meta name='viewport' content='width=device-width, initial-scale=1'>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-        {GLOBAL_STYLES}
-          h1 {{ font-size: 2em; }}
-          canvas {{ max-width: 600px; margin-top: 2em; }}
-          table.summary {{ border-collapse: collapse; margin: 2em auto; width: 90%; }}
-          table.summary th, table.summary td {{ border: 1px solid #ccc; padding: 0.5em; text-align: left; }}
-
-          a {{ display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; }}
-        </style>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <style>{GLOBAL_STYLES}
+            h2 {{ font-size:1.5em; margin-bottom:1em; }}
+            .concept-box {{ background:#e9ecef; padding:.5em; border-radius:6px; }}
+            label {{ display:block; text-align:left; margin: .5em 0; }}
+            button {{ margin-top:1em; width:100%; padding:10px; font-size:1.1em; background:#007BFF; color:#fff; border:none; border-radius:6px; cursor:pointer; }}
+            button:hover {{ background:#0056b3; }}
+            .progress {{ background:#ddd; border-radius:5px; overflow:hidden; }}
+            .progress-bar {{ width:{progress}%; background:#28a745; height:20px; }}
+          </style>
         </head>
         <body>
-        {NAV_BAR}
-        <h1>Your Score: {score} / {total}</h1>
-
-        <canvas id="difficultyChart" width="600" height="300"></canvas>
-        <script>
-          const ctx = document.getElementById('difficultyChart').getContext('2d');
-          const chart = new Chart(ctx, {{
-            type: 'line',
-            data: {{
-              labels: {list(range(1, len(level_data)+1))},
-              datasets: [{{
-                label: 'Question Difficulty (1=Easy, 3=Hard)',
-                data: {level_data},
-                borderColor: 'rgba(0, 123, 255, 1)',
-                backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                fill: true,
-                tension: 0.3
-              }}]
-            }},
-            options: {{
-              scales: {{
-                y: {{
-                  min: 1,
-                  max: 3,
-                  ticks: {{
-                    callback: function(value) {{
-                      return ['','Easy','Medium','Hard'][value];
-                    }},
-                    stepSize: 1
-                  }}
-                }}
-              }}
-            }}
-          }});
-        </script>
-
-        <table class="summary">
-          <tr><th>Question</th><th>Your Answer</th><th>Correct</th><th>Explanation</th></tr>
-
-          {rows}
-        </table>
-
-        <a href="/">Start Over</a>
+          {NAV_BAR}
+          <div class="quiz-box">
+            <h2>{q['question']}</h2>
+            <div class="progress"><div class="progress-bar"></div></div>
+            <p>Question {idx+1} of {total}</p>
+            <div class="concept-box">
+              <strong>Concepts:</strong> {', '.join(q.get('concepts', []))}
+            </div>
+            <form action="/answer" method="post">
+              {"".join(
+                  f"<label><input type='radio' name='choice' value='{c}' required> {c}</label>"
+                  for c in q['choices']
+              )}
+              <button type="submit">Submit</button>
+            </form>
+          </div>
         </body>
         </html>
-        '''
+        """
+        return tmpl
 
-    except Exception as e:
+    except Exception:
+        logging.exception("Error in /question")
+        return "<pre>/question error</pre>", 500
+
+
+@app.route("/answer", methods=["POST"])
+def answer():
+    try:
+        idx = session["index"]
+        questions = session["questions"]
+        choice = request.form["choice"]
+        correct = questions[idx]["answer"]
+
+        # log answer
+        session["answer_log"].append({
+            "question": questions[idx]["question"],
+            "your_answer": choice,
+            "correct_answer": correct,
+            "explanation": questions[idx].get("explanation", "")
+        })
+
+        # scoring + adaptive difficulty
+        diff = session["difficulty"]
+        if choice == correct:
+            session["score"] += 1
+            diff = {"easy":"medium","medium":"hard"}.get(diff, diff)
+        else:
+            diff = {"hard":"medium","medium":"easy"}.get(diff, diff)
+        session["difficulty"] = diff
+        session["difficulty_log"].append(diff)
+
+        session["index"] = idx + 1
+        return redirect(url_for("question"))
+
+    except Exception:
+        logging.exception("Error in /answer")
+        return "<pre>/answer error</pre>", 500
+
+
+@app.route("/result", methods=["GET"])
+def result():
+    try:
+        score = session["score"]
+        total = session["num"]
+        diffs = session["difficulty_log"] or ["medium"] * total
+        level_map = {"easy":1,"medium":2,"hard":3}
+        levels = [level_map.get(d,2) for d in diffs]
+        rows = "".join(
+            f"<tr><td>{a['question']}</td>"
+            f"<td>{a['your_answer']}</td>"
+            f"<td>{a['correct_answer']}</td>"
+            f"<td>{a['explanation']}</td></tr>"
+            for a in session["answer_log"]
+        )
+
+        # render final page
+        return render_template_string(f"""
+        <!doctype html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+          <style>{GLOBAL_STYLES}
+            h1 {{ font-size:2em; }}
+            canvas {{ max-width:600px; margin:2em auto; display:block; }}
+            table {{ border-collapse:collapse; margin:2em auto; width:90%; }}
+            th,td {{ border:1px solid #ccc; padding:.5em; text-align:left; }}
+            a {{ display:inline-block; margin:2em; color:#007BFF; text-decoration:none; }}
+          </style>
+        </head>
+        <body>
+          {NAV_BAR}
+          <h1>Your Score: {{score}} / {{total}}</h1>
+          <canvas id="difficultyChart"></canvas>
+          <script>
+            new Chart(
+              document.getElementById('difficultyChart'),
+              {{
+                type:'line',
+                data:{{ labels:{list(range(1,len(levels)+1))}, datasets:[{{ 
+                  label:'Difficulty (1=Easy,3=Hard)',
+                  data:{levels},
+                  fill:true, tension:0.3
+                }}]}},
+                options:{{ scales:{{ y:{{ min:1,max:3, ticks:{{ stepSize:1, callback: v=>['','Easy','Medium','Hard'][v] }}}}}}}}
+              }}
+            );
+          </script>
+          <table>
+            <tr><th>Question</th><th>Your Answer</th><th>Correct</th><th>Explanation</th></tr>
+            {rows}
+          </table>
+          <a href="/">Start Over</a>
+        </body>
+        </html>
+        """, score=score, total=total)
+
+    except Exception:
         logging.exception("Error in /result")
-        return f"<pre>/result error:\n{e}</pre>", 500
+        return "<pre>/result error</pre>", 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+# ─── Entrypoint ────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
