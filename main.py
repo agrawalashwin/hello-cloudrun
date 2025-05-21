@@ -61,9 +61,11 @@ def start():
         session['num'] = int(request.form.get('num', 1))
         session['score'] = 0
         session['index'] = 0
-        session['difficulty'] = "medium"
+        session['difficulty'] = "easy"
         session['questions'] = []
-        session['difficulty_log'] = []  # ✅ Add this line
+        session['difficulty_log'] = []
+        session['used_concepts'] = []
+        session['answers_log'] = []
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
@@ -77,8 +79,17 @@ def question():
         num = session.get('num', 1)
         topic = session.get('topic', 'language')
         grade = session.get('grade', '3')
-        difficulty = session.get('difficulty', 'medium')
+        # Increase difficulty as the quiz progresses
+        progress = index / num if num else 0
+        if progress < 0.33:
+            difficulty = 'easy'
+        elif progress < 0.66:
+            difficulty = 'medium'
+        else:
+            difficulty = 'hard'
+        session['difficulty'] = difficulty
         questions = session.get('questions', [])
+        used_concepts = session.get('used_concepts', [])
 
         if index >= num:
             return redirect(url_for('result'))
@@ -88,10 +99,12 @@ def question():
             prompt = (
                 "Generate 1 {difficulty} SAT-style multiple choice question "
                 "for a grade {grade} student focusing on {topic}. "
+                "Avoid using these concepts again: {used}. "
                 "Vary style and subtopics each time. "
                 "Return JSON with keys 'question', 'choices' (list), 'answer', "
-                "and 'concepts' (list of concepts tested)."
-            ).format(grade=grade, topic=topic, difficulty=difficulty)
+                "'explanation', and 'concepts' (list of concepts tested)."
+            ).format(grade=grade, topic=topic, difficulty=difficulty, used=', '.join(used_concepts) or 'none')
+
 
             attempts = 0
             while True:
@@ -108,7 +121,11 @@ def question():
                         raw = raw[4:].lstrip()
 
                 data = json.loads(raw)
-                if not any(q.get('question') == data.get('question') for q in questions):
+                concepts = data.get('concepts', [])
+                unique_question = not any(q.get('question') == data.get('question') for q in questions)
+                unique_concepts = not any(c in used_concepts for c in concepts)
+                if unique_question and unique_concepts:
+
                     break
                 attempts += 1
                 if attempts >= 5:
@@ -116,6 +133,11 @@ def question():
 
             questions.append(data)
             session['questions'] = questions
+            used_concepts.extend(concepts)
+            session['used_concepts'] = used_concepts
+            log = session.get('difficulty_log', [])
+            log.append(difficulty)
+            session['difficulty_log'] = log
         else:
             data = questions[index]
 
@@ -173,17 +195,21 @@ def answer():
         choice = request.form.get('choice')
         correct = questions[index]['answer']
 
-        # Scoring + difficulty logic
+        # Scoring
         if choice == correct:
             session['score'] += 1
-            session['difficulty'] = "hard" if session['difficulty'] == "medium" else "medium"
-        else:
-            session['difficulty'] = "easy" if session['difficulty'] == "medium" else "medium"
 
-        # Track difficulty history
-        log = session.get('difficulty_log', [])
-        log.append(session['difficulty'])
-        session['difficulty_log'] = log
+        # Log answer details
+        answers_log = session.get('answers_log', [])
+        explanation = questions[index].get('explanation', '')
+        answers_log.append({
+            'question': questions[index]['question'],
+            'selected': choice,
+            'correct': correct,
+            'explanation': explanation,
+            'concepts': questions[index].get('concepts', [])
+        })
+        session['answers_log'] = answers_log
 
         session['index'] = index + 1
         return redirect(url_for('question'))
@@ -200,6 +226,7 @@ def result():
         score = session.get('score', 0)
         total = session.get('num', 1)
         difficulties = session.get('difficulty_log', [])
+        answers_log = session.get('answers_log', [])
 
         # Fallback if no log is tracked
         if not difficulties:
@@ -210,6 +237,10 @@ def result():
         level_labels = list(level_map.keys())
         level_data = [level_map.get(d, 2) for d in difficulties]
 
+        summary_rows = ''
+        for a in answers_log:
+            summary_rows += f"<tr><td>{a['question']}</td><td>{a['selected']}</td><td>{a['correct']}</td><td>{a['explanation']}</td></tr>"
+
         return f'''
         <html>
         <head>
@@ -219,10 +250,17 @@ def result():
           h1 {{ font-size: 2em; }}
           canvas {{ max-width: 600px; margin-top: 2em; }}
           a {{ display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; }}
+          table {{ width: 100%; border-collapse: collapse; margin-top: 2em; }}
+          th, td {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
         </style>
         </head>
         <body>
         <h1>Your Score: {score} / {total}</h1>
+
+        <table>
+          <tr><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th>Explanation</th></tr>
+          {summary_rows}
+        </table>
 
         <canvas id="difficultyChart" width="600" height="300"></canvas>
         <script>
