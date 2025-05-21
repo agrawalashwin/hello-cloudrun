@@ -2,6 +2,7 @@
 
 This is a simple Flask web application that generates SAT practice quizzes for kids. Users can choose a topic (language or math), select the grade level, and specify how many questions they want. The app relies on OpenAI's `gpt-4.1-mini-2025-04-14` model to create unique multiple-choice questions and scores the answers at the end.
 
+
 ## Running Locally
 
 1. Install dependencies:
@@ -47,3 +48,4 @@ To deploy manually, you can run:
 ```bash
 bash deploy.sh
 ```
+
