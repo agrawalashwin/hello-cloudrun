@@ -11,19 +11,25 @@ logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
-def generate_question(topic, grade, difficulty, used_questions, used_concepts):
-    """Generate a single unique SAT-style question."""
+def generate_question(grade, topic, difficulty, used_concepts, used_questions):
+    """Generate a unique question avoiding used concepts and questions."""
     prompt = (
-        f"Generate 1 {difficulty} SAT-style multiple choice question "
-        f"for a grade {grade} student focusing on {topic}. "
-        "Vary style and subtopics each time. "
-        f"Avoid these concepts: {', '.join(used_concepts) if used_concepts else 'none'}. "
+        "Generate 1 {difficulty} SAT-style multiple choice question "
+        "for a grade {grade} student focusing on {topic}. "
+        "Avoid these concepts: {concepts}. Vary style and subtopics each time. "
         "Return JSON with keys 'question', 'choices' (list), 'answer', "
-        "'explanation', and 'concepts' (list of concepts tested)."
+        "'explanation', and 'concepts' (list)."
+    ).format(
+        grade=grade,
+        topic=topic,
+        difficulty=difficulty,
+        concepts=", ".join(used_concepts) or "none",
     )
 
     attempts = 0
-    while True:
+    data = {}
+    while attempts < 5:
+
         response = client.chat.completions.create(
             model="gpt-4.1-mini-2025-04-14",
             messages=[{"role": "user", "content": prompt}],
@@ -35,19 +41,18 @@ def generate_question(topic, grade, difficulty, used_questions, used_concepts):
             raw = raw.strip("` \n")
             if raw.startswith("json"):
                 raw = raw[4:].lstrip()
-
         data = json.loads(raw)
 
-        if data.get("question") not in used_questions and not any(
-            c in used_concepts for c in data.get("concepts", [])
+        question_text = data.get("question", "")
+        concepts = data.get("concepts", [])
+        if (
+            question_text not in used_questions
+            and not set(concepts).intersection(used_concepts)
         ):
-            used_questions.add(data.get("question"))
-            used_concepts.update(data.get("concepts", []))
-            return data
-
+            break
         attempts += 1
-        if attempts >= 5:
-            return data
+    return data
+
 
 # Quiz homepage
 INDEX_HTML = '''
@@ -99,23 +104,9 @@ def start():
         session['score'] = 0
         session['index'] = 0
         session['questions'] = []
+        session['difficulty_log'] = []
+        session['used_concepts'] = []
         session['answer_log'] = []
-
-        used_q = set()
-        used_c = set()
-        difficulties = []
-        for i in range(session['num']):
-            if i < session['num'] // 3:
-                diff = "easy"
-            elif i < 2 * session['num'] // 3:
-                diff = "medium"
-            else:
-                diff = "hard"
-            difficulties.append(diff)
-            q = generate_question(session['topic'], session['grade'], diff, used_q, used_c)
-            session['questions'].append(q)
-
-        session['difficulty_log'] = difficulties
 
         return redirect(url_for('question'))
     except Exception as e:
@@ -134,10 +125,17 @@ def question():
         if index >= num:
             return redirect(url_for('result'))
 
+        # Generate a new question if needed
         if index >= len(questions):
-            logging.warning("Index out of range for questions list")
-            return redirect(url_for('result'))
-        data = questions[index]
+            used_concepts = session.get('used_concepts', [])
+            used_questions = [q.get('question') for q in questions]
+            data = generate_question(grade, topic, difficulty, used_concepts, used_questions)
+            questions.append(data)
+            session['questions'] = questions
+            used_concepts.extend(data.get('concepts', []))
+            session['used_concepts'] = used_concepts
+        else:
+            data = questions[index]
 
 
         progress_percent = int((index + 1) / num * 100)
@@ -212,18 +210,35 @@ def answer():
         choice = request.form.get('choice')
         correct = questions[index]['answer']
 
-        if choice == correct:
-            session['score'] += 1
-
-        log = session.get('answer_log', [])
-        log.append({
+        # Log the answer and explanation
+        answers = session.get('answer_log', [])
+        answers.append({
             'question': questions[index]['question'],
             'your_answer': choice,
-            'correct': correct,
+            'correct_answer': correct,
             'explanation': questions[index].get('explanation', '')
         })
-        session['answer_log'] = log
+        session['answer_log'] = answers
 
+        # Scoring + adaptive difficulty
+        difficulty = session.get('difficulty', 'medium')
+        if choice == correct:
+            session['score'] += 1
+            if difficulty == 'easy':
+                difficulty = 'medium'
+            elif difficulty == 'medium':
+                difficulty = 'hard'
+        else:
+            if difficulty == 'hard':
+                difficulty = 'medium'
+            elif difficulty == 'medium':
+                difficulty = 'easy'
+        session['difficulty'] = difficulty
+
+        # Track difficulty history
+        log = session.get('difficulty_log', [])
+        log.append(difficulty)
+        session['difficulty_log'] = log
 
 
         session['index'] = index + 1
@@ -248,12 +263,11 @@ def result():
         level_labels = list(level_map.keys())
         level_data = [level_map.get(d, 2) for d in difficulties]
 
-        rows = ""
-        for i, entry in enumerate(answers, 1):
-            rows += (
-                f"<tr><td>{i}</td><td>{entry['your_answer']}</td>"
-                f"<td>{entry['correct']}</td><td>{entry['explanation']}</td></tr>"
-            )
+        rows = "".join(
+            f"<tr><td>{a['question']}</td><td>{a['your_answer']}</td><td>{a['correct_answer']}</td><td>{a['explanation']}</td></tr>"
+            for a in answers
+        )
+
 
         return f'''
         <html>
@@ -263,17 +277,18 @@ def result():
           body {{ font-family: 'Segoe UI', sans-serif; text-align: center; margin-top: 4em; }}
           h1 {{ font-size: 2em; }}
           canvas {{ max-width: 600px; margin-top: 2em; }}
-          table, th, td {{ border: 1px solid #ccc; }}
-          table {{ width: 100%; margin-top: 1em; }}
-          th, td {{ padding: 6px; text-align: left; }}
+          table.summary {{ border-collapse: collapse; margin: 2em auto; width: 90%; }}
+          table.summary th, table.summary td {{ border: 1px solid #ccc; padding: 0.5em; text-align: left; }}
+
           a {{ display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; }}
         </style>
         </head>
         <body>
         <h1>Your Score: {score} / {total}</h1>
 
-        <table style="margin:1em auto;border-collapse:collapse;max-width:600px;">
-          <tr><th>#</th><th>Your Answer</th><th>Correct Answer</th><th>Explanation</th></tr>
+        <table class="summary">
+          <tr><th>Question</th><th>Your Answer</th><th>Correct</th><th>Explanation</th></tr>
+
           {rows}
         </table>
 
@@ -320,4 +335,5 @@ def result():
         return f"<pre>/result error:\n{e}</pre>", 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
