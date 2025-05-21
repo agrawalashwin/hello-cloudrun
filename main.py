@@ -105,6 +105,7 @@ def question():
                 "'explanation', and 'concepts' (list of concepts tested)."
             ).format(grade=grade, topic=topic, difficulty=difficulty, used=', '.join(used_concepts) or 'none')
 
+
             attempts = 0
             while True:
                 response = client.chat.completions.create(
@@ -124,6 +125,7 @@ def question():
                 unique_question = not any(q.get('question') == data.get('question') for q in questions)
                 unique_concepts = not any(c in used_concepts for c in concepts)
                 if unique_question and unique_concepts:
+
                     break
                 attempts += 1
                 if attempts >= 5:
