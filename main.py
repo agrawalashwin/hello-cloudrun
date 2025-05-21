@@ -73,9 +73,13 @@ def start():
         session['num'] = int(request.form.get('num', 1))
         session['score'] = 0
         session['index'] = 0
-        session['difficulty'] = "medium"
+        session['difficulty'] = "easy"
         session['questions'] = []
         session['difficulty_log'] = []
+
+        session['used_concepts'] = []
+        session['answers_log'] = []
+
         return redirect(url_for('question'))
     except Exception as e:
         logging.exception("Error in /start")
@@ -88,8 +92,17 @@ def question():
         num = session.get('num', 1)
         topic = session.get('topic', 'language')
         grade = session.get('grade', '3')
-        difficulty = session.get('difficulty', 'medium')
+        # Increase difficulty as the quiz progresses
+        progress = index / num if num else 0
+        if progress < 0.33:
+            difficulty = 'easy'
+        elif progress < 0.66:
+            difficulty = 'medium'
+        else:
+            difficulty = 'hard'
+        session['difficulty'] = difficulty
         questions = session.get('questions', [])
+        used_concepts = session.get('used_concepts', [])
 
         if index >= num:
             return redirect(url_for('result'))
@@ -119,6 +132,7 @@ def question():
 
                 data = json.loads(raw)
                 if not any(q.get('question') == data.get('question') for q in questions):
+
                     break
                 attempts += 1
                 if attempts >= 5:
@@ -126,6 +140,11 @@ def question():
 
             questions.append(data)
             session['questions'] = questions
+            used_concepts.extend(concepts)
+            session['used_concepts'] = used_concepts
+            log = session.get('difficulty_log', [])
+            log.append(difficulty)
+            session['difficulty_log'] = log
         else:
             data = questions[index]
 
@@ -136,6 +155,7 @@ def question():
         </div>
         <p>Question {index + 1} of {num}</p>
         """
+
 
         html = f"""
 <html><head>
@@ -190,6 +210,7 @@ def answer():
         log.append(session['difficulty'])
         session['difficulty_log'] = log
 
+
         session['index'] = index + 1
         return redirect(url_for('question'))
     except Exception as e:
@@ -202,6 +223,7 @@ def result():
         score = session.get('score', 0)
         total = session.get('num', 1)
         difficulties = session.get('difficulty_log', [])
+
         if not difficulties:
             difficulties = ['medium'] * total
         level_map = {'easy':1, 'medium':2, 'hard':3}
