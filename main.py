@@ -10,6 +10,29 @@ logging.basicConfig(level=logging.DEBUG)
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# Shared styles for all pages including a responsive navigation bar
+GLOBAL_STYLES = """
+body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin: 0; padding-top: 60px; text-align: center; }
+.quiz-box { background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
+.navbar { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; background: #007BFF; color: #fff; padding: 0.5em 1em; box-sizing: border-box; }
+.navbar img { width: 40px; height: 40px; margin-right: 10px; }
+.navbar .brand { display: flex; align-items: center; font-weight: bold; font-size: 1.2em; }
+@media (max-width: 600px) {
+    .navbar { flex-direction: column; }
+    body { padding-top: 80px; }
+}
+"""
+
+# Navigation bar snippet reused across pages
+NAV_BAR = """
+<nav class='navbar'>
+  <div class='brand'>
+    <img src='https://via.placeholder.com/40' alt='Logo'>
+    <span>Ari and Rishu SAT Prep App</span>
+  </div>
+</nav>
+"""
+
 
 def generate_question(grade, topic, difficulty, used_concepts, used_questions):
     """Generate a unique question avoiding used concepts and questions."""
@@ -55,7 +78,7 @@ def generate_question(grade, topic, difficulty, used_concepts, used_questions):
 
 
 # Quiz homepage
-INDEX_HTML = '''
+INDEX_HTML = f"""
 <html>
 <head>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
@@ -144,28 +167,7 @@ def question():
           <div style='width:{progress_percent}%; background:#28a745; height:20px;'></div>
         </div>
         <p>Question {index + 1} of {num}</p>
-        '''
-
-        html = f'''
-        <html><head><style>
-        body {{ font-family: 'Segoe UI', sans-serif; background: #f4f4f8; padding: 2em; text-align: center; }}
-        .quiz-box {{ background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }}
-        h2 {{ font-size: 1.5em; margin-bottom: 1em; }}
-        form {{ margin-top: 1em; }}
-        label {{ font-size: 1.1em; display: block; text-align: left; padding: 0.5em; }}
-        input[type="radio"] {{ margin-right: 10px; }}
-        .concept-box {{ background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }}
-        button {{ margin-top: 1em; font-size: 1.1em; padding: 10px 20px; background: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }}
-        button:hover {{ background-color: #0056b3; }}
-        </style></head><body>
-        <div class="quiz-box">
-        <h2>{data['question']}</h2>
-        {progress_bar}
-        <div class="concept-box"><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
-        <form action="/answer" method="post">
-        '''
-
-
+        """
 
         html = f"""
 <html><head>
@@ -187,7 +189,7 @@ button:hover {{ background-color:#0056b3; }}
 {progress_bar}
 <div class='concept-box'><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
 <form action='/answer' method='post'>
-"""
+        """
         for choice in data['choices']:
             html += f"<label><input type='radio' name='choice' value='{choice}' required> {choice}</label>"
         html += "<button type='submit'>Submit</button></form></div></body></html>"
@@ -272,9 +274,10 @@ def result():
         return f'''
         <html>
         <head>
+        <meta name='viewport' content='width=device-width, initial-scale=1'>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
-          body {{ font-family: 'Segoe UI', sans-serif; text-align: center; margin-top: 4em; }}
+        {GLOBAL_STYLES}
           h1 {{ font-size: 2em; }}
           canvas {{ max-width: 600px; margin-top: 2em; }}
           table.summary {{ border-collapse: collapse; margin: 2em auto; width: 90%; }}
@@ -284,6 +287,7 @@ def result():
         </style>
         </head>
         <body>
+        {NAV_BAR}
         <h1>Your Score: {score} / {total}</h1>
 
         <table class="summary">
