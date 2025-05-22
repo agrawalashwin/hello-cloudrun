@@ -1,6 +1,7 @@
 import os, json, logging
 from flask import Flask, request, redirect, session, url_for, render_template
 import openai
+import itertools
 
 # Config
 BLOCK_SIZE = 5
@@ -37,34 +38,56 @@ def start():
     generate_block()
     return redirect(url_for('question'))
 
-# Generate next BLOCK_SIZE questions
+
 def generate_block():
-    topic, grade, total = session['topic'], session['grade'], session['num']
-    questions, seen, diff = session['questions'], {q['question'] for q in session['questions']}, session['difficulty']
+    topic   = session['topic']
+    grade   = session['grade']
+    total   = session['num']
+    questions = session['questions']
+    seen      = {q['question'] for q in questions}
+    diff      = session['difficulty']
+
     to_gen = min(BLOCK_SIZE, total - len(questions))
-    for _ in range(to_gen):
-        prompt = (
-            f"Generate 1 {diff} SAT-style multiple choice question for a grade {grade} student focusing on {topic}."
-            "Return ONLY JSON with keys:'question','choices','answer','concepts','explanation'."
-        )
-        resp = client.chat.completions.create(
-            model="gpt-4.1-mini-2025-04-14",
-            messages=[{"role":"user","content":prompt}],
-            temperature=0.9,
-        )
-        raw = resp.choices[0].message.content.strip()
-        if raw.startswith("```"):
-            raw = "\n".join(raw.splitlines()[1:-1])
-        try:
-            q = json.loads(raw)
-        except json.JSONDecodeError:
-            logging.error("Invalid JSON: %s", raw)
-            continue
-        if q.get('question') not in seen and isinstance(q.get('choices'), list) and len(q['choices'])==4:
+    if to_gen <= 0:
+        return
+
+    # One API call to generate N questions
+    prompt = (
+        f"Generate {to_gen} SAT-style multiple-choice questions "
+        f"at {diff} difficulty for a grade {grade} student on {topic}. "
+        "Return ONLY a JSON array of objects, each with keys: "
+        "'question','choices','answer','concepts','explanation'."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4.1-mini-2025-04-14",
+        messages=[{"role":"user","content":prompt}],
+        temperature=0.9,
+    )
+    raw = resp.choices[0].message.content.strip()
+    if raw.startswith("```"):
+        raw = "\n".join(raw.splitlines()[1:-1])
+
+    try:
+        batch = json.loads(raw)
+    except json.JSONDecodeError:
+        logging.error("Batch JSON decode failed:\n%s", raw)
+        return
+
+    # Dedupe & truncate exactly to to_gen
+    new_qs = []
+    for q in batch:
+        if (isinstance(q, dict)
+            and q.get('question') not in seen
+            and isinstance(q.get('choices'), list)
+            and len(q['choices']) == 4):
             seen.add(q['question'])
-            questions.append(q)
+            new_qs.append(q)
             diff = {'easy':'medium','medium':'hard','hard':'medium'}[diff]
-    session['questions'] = questions
+        if len(new_qs) >= to_gen:
+            break
+
+    questions.extend(new_qs)
+    session['questions']  = questions
     session['difficulty'] = diff
 
 # Show question
