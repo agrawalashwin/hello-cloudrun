@@ -7,29 +7,37 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # 1) Check out your code
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      # 2) Authenticate to GCP
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      # 3) Install & configure gcloud
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Configure Docker to talk to Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+      # 4) Configure Docker to push to Artifact Registry
+      - name: Configure Docker credentials
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
+      # 5) Build the Docker image (uses your Dockerfile)
       - name: Build & push Docker image
         run: |
           IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
           docker build -t $IMAGE .
           docker push $IMAGE
 
+      # 6) Deploy that image to Cloud Run
       - name: Deploy to Cloud Run
         run: |
           IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
