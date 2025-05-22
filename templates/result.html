@@ -12,56 +12,53 @@
     integrity="sha384-0evHe/X+R7YkR4+Y7R17yZj+AGr2uZsE2J7cqE+7pTXKQv7l52m+jm3p5M2z4Z+8"
     crossorigin="anonymous"
   >
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #f4f4f8; }
+    .results-container { max-width: 900px; margin: 3rem auto; }
+  </style>
 </head>
 <body>
-
-  <!-- Single Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-primary bg-primary text-white">
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-primary">
     <div class="container-fluid">
-      <a class="navbar-brand text-white" href="/">
-        <img src="/static/logo.png" alt="Logo" height="32" onerror="this.style.display='none'">
-        Ari &amp; Rishu's SAT Prep APP
-      </a>
+      <a class="navbar-brand text-white" href="/">Ari &amp; Rishu's SAT Prep APP</a>
     </div>
   </nav>
 
-  <div class="container py-4">
-    <h1>Your Score: {{ score }} / {{ total }}</h1>
+  <div class="container results-container bg-white p-4 shadow-sm">
+    <h2>Your Score: {{ score }} / {{ total }}</h2>
 
-    <div class="row mt-4">
-      <div class="col-md-6 mb-4">
+    <div class="row my-4">
+      <div class="col-md-6">
         <canvas id="difficultyChart"></canvas>
       </div>
-      <div class="col-md-6 mb-4">
+      <div class="col-md-6">
         <canvas id="timeChart"></canvas>
       </div>
     </div>
 
     <!-- Detailed Table -->
-    <table class="table table-striped">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Question</th>
-          <th>Your Answer</th>
-          <th>Correct</th>
-          <th>Time (s)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for i in range(total) %}
-        <tr>
-          <td>{{ i+1 }}</td>
-          <td style="white-space: pre-wrap;">{{ session.questions[i].question }}</td>
-          <td>{{ answers[i] }}</td>
-          <td>{{ corrects[i] }}</td>
-          <td>{{ times[i] }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Question</th><th>Your Answer</th><th>Correct</th><th>Time (s)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in range(total) %}
+          <tr>
+            <td>{{ i+1 }}</td>
+            <td style="white-space: pre-wrap;">{{ session.questions[i].question }}</td>
+            <td>{{ answers[i] }}</td>
+            <td>{{ corrects[i] }}</td>
+            <td>{{ times[i] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
     <!-- Feedback -->
     <div class="mt-4">
@@ -85,38 +82,21 @@
       document.getElementById('difficultyChart').getContext('2d'),
       {
         type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Difficulty (1=Easy→3=Hard)',
-            data: levels,
-            tension: 0.3,
-            borderColor: '#007bff',
-            backgroundColor: 'rgba(0,123,255,0.1)'
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true, min: 1, max: 3, ticks: { stepSize: 1 } }
-          }
-        }
+        data: { labels, datasets: [{ 
+          label: 'Difficulty (1=Easy→3=Hard)', 
+          data: levels, tension:0.3,
+          borderColor:'#007bff', backgroundColor:'rgba(0,123,255,0.1)'
+        }]},
+        options: { scales:{ y:{ beginAtZero:true, min:1, max:3, ticks:{ stepSize:1 } } } }
       }
     );
 
     new Chart(
       document.getElementById('timeChart').getContext('2d'),
       {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Time per Q (s)',
-            data: times
-          }]
-        },
-        options: {
-          scales: { y: { beginAtZero: true } }
-        }
+        type:'bar',
+        data:{ labels, datasets:[{ label:'Time per Q (s)', data:times, backgroundColor:'#28a745' }]},
+        options:{ scales:{ y:{ beginAtZero:true } } }
       }
     );
   </script>
