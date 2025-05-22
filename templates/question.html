@@ -4,14 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Question {{ index+1 }} of {{ total }}</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding:0; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 1em; background: #007BFF; color: #fff; position: sticky; top:0; }
+    nav img { max-height: 32px; }
+    nav h1 { flex-grow: 1; text-align: center; font-size: 1em; margin:0; }
+    nav .timer { font-size: 1em; }
+    .quiz-box { background: #fff; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: 3em auto 2em; }
+    .progress-bar { background: #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 1em; height: 20px; }
+    .fill { background: #28a745; height: 100%; width: {{ progress }}%; }
+    h2 { font-size: 1.5em; margin-bottom: 1em; }
+    .concept-box { background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }
+    label { font-size: 1.1em; display: block; padding: 0.5em; }
+    input[type="radio"] { margin-right: 10px; }
+    button { margin-top: 1em; padding: 10px 20px; font-size: 1.1em; background: #007BFF; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+  </style>
   <script>
     let startTime;
-    document.addEventListener('DOMContentLoaded', ()=> startTime = Date.now());
+    document.addEventListener('DOMContentLoaded', () => { startTime = Date.now(); });
     function recordTime() { document.getElementById('time').value = Date.now() - startTime; }
   </script>
-  <style>
-    /* your CSS here */
-  </style>
 </head>
 <body>
   <nav>
@@ -20,20 +33,21 @@
     <span class="timer">0s</span>
   </nav>
   <div class="quiz-box">
-    <div class="progress-bar"><div class="fill" style="width:{{ progress }}%"></div></div>
+    <div class="progress-bar"><div class="fill"></div></div>
+    <p>Question {{ index+1 }} of {{ total }}</p>
     <h2>{{ question.question }}</h2>
-    <div><strong>Concepts:</strong> {{ question.concepts | join(', ') }}</div>
+    <div class="concept-box"><strong>Concepts:</strong> {{ question.concepts | join(', ') }}</div>
     <form action="/answer" method="post" onsubmit="recordTime()">
       <input type="hidden" id="time" name="time" value="0">
       {% for c in question.choices %}
-        <label><input type="radio" name="choice" value="{{ c }}" required> {{ c }}</label>
+      <label><input type="radio" name="choice" value="{{ c }}" required> {{ c }}</label>
       {% endfor %}
       <button type="submit">Submit</button>
     </form>
   </div>
   <script>
-    setInterval(()=>{
-      const sec = Math.floor((Date.now() - startTime)/1000);
+    setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
       document.querySelector('.timer').textContent = sec + 's';
     }, 500);
   </script>
