@@ -20,56 +20,51 @@ app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# ─── Config ──────────────────────────────────────────────────────────────────
-BLOCK_SIZE = 5    # fallback block size
+BLOCK_SIZE = 5
 
-# ─── Caching static files ────────────────────────────────────────────────────
 @app.after_request
 def set_cache_headers(response):
-    # one-year cache for anything under /static/
     if request.path.startswith("/static/"):
         response.cache_control.max_age = 31536000
     return response
 
-# ─── Question generation ─────────────────────────────────────────────────────
 def generate_block(count=None):
-    """
-    Generate up to `count` new questions (if provided),
-    otherwise up to BLOCK_SIZE.  Deduplicates automatically.
-    """
     topic    = session["topic"]
+    subtopic = session.get("subtopic", "").strip()
     grade    = session["grade"]
     total    = session["num"]
-    questions = session["questions"]
-    seen     = {q["question"] for q in questions}
+    qs       = session["questions"]
+    seen     = {q["question"] for q in qs}
     diff     = session["difficulty"]
 
-    # figure out how many to make
-    to_gen = count if (count is not None) else BLOCK_SIZE
-    to_gen = min(to_gen, total - len(questions))
+    to_gen = count if count is not None else BLOCK_SIZE
+    to_gen = min(to_gen, total - len(qs))
     if to_gen <= 0:
         return
 
+    # Build the prompt; include subtopic if provided
     prompt = (
         f"Generate {to_gen} SAT-style multiple-choice questions "
-        f"at {diff} difficulty for a grade {grade} student on {topic}. "
-        "Return ONLY a JSON array of objects, each with keys: "
-        "'question','choices','answer','concepts','explanation'."
+        f"at {diff} difficulty for a grade {grade} student on {topic}"
     )
+    if subtopic:
+        prompt += f" focusing specifically on {subtopic}"
+    prompt += ". Return ONLY a JSON array of objects, each with keys: " \
+              "'question','choices','answer','concepts','explanation'."
+
     resp = client.chat.completions.create(
         model="gpt-4.1-mini-2025-04-14",
         messages=[{"role":"user","content":prompt}],
         temperature=0.9,
     )
     raw = resp.choices[0].message.content.strip()
-    # strip code fences if present
     if raw.startswith("```"):
         raw = "\n".join(raw.splitlines()[1:-1])
 
     try:
         batch = json.loads(raw)
-    except Exception as e:
-        logging.error("Failed to parse JSON from OpenAI:\n%s", raw)
+    except Exception:
+        logging.error("Failed JSON parse:\n%s", raw)
         return
 
     new_qs = []
@@ -82,33 +77,29 @@ def generate_block(count=None):
         ):
             seen.add(q["question"])
             new_qs.append(q)
-            # rotate difficulty
             diff = {"easy":"medium","medium":"hard","hard":"medium"}[diff]
         if len(new_qs) >= to_gen:
             break
 
-    questions.extend(new_qs)
-    session["questions"]  = questions
+    qs.extend(new_qs)
+    session["questions"]  = qs
     session["difficulty"] = diff
-
-# ─── Routes ──────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
 @app.route('/start', methods=['POST'])
 def start():
-    # clear / init session
     session.clear()
     session.update({
-        "topic":     request.form["topic"],
-        "grade":     request.form["grade"],
-        "num":       int(request.form["num"]),
-        "score":     0,
-        "index":     0,
-        "difficulty":"medium",
+        "topic":       request.form["topic"],
+        "subtopic":    request.form.get("subtopic","").strip(),
+        "grade":       request.form["grade"],
+        "num":         int(request.form["num"]),
+        "score":       0,
+        "index":       0,
+        "difficulty":  "medium",
         "questions":      [],
         "difficulty_log": [],
         "time_log":       [],
@@ -116,40 +107,26 @@ def start():
         "corrects":       [],
         "explanations":   [],
     })
-
-    # **Pre-generate all questions at once**:
+    # Pre-generate entire quiz
     generate_block(count=session["num"])
     return redirect(url_for('question'))
 
-
 @app.route('/question')
 def question():
-    idx   = session.get("index",  0)
-    total = session.get("num",    1)
-    qs    = session.get("questions", [])
-
-    # done?
+    idx   = session["index"]
+    total = session["num"]
+    qs    = session["questions"]
     if idx >= total:
         return redirect(url_for('result'))
-
-    # fallback: generate next block if somehow missing
     if idx >= len(qs):
         generate_block()
-        qs = session.get("questions", [])
-
-    if idx >= len(qs):
-        return redirect(url_for('result'))
-
-    q = qs[idx]
-    progress = int((idx+1)/total * 100)
     return render_template(
         'question.html',
-        question=q,
+        question=qs[idx],
         index=idx,
         total=total,
-        progress=progress
+        progress=int((idx+1)/total*100)
     )
-
 
 @app.route('/answer', methods=['POST'])
 def answer():
@@ -177,7 +154,6 @@ def answer():
     session["index"] = i + 1
     return redirect(url_for('question'))
 
-
 @app.route('/result')
 def result():
     score, total = session["score"], session["num"]
@@ -189,7 +165,7 @@ def result():
     corrects= session["corrects"]
     exps    = session["explanations"]
 
-    # feedback
+    # Feedback
     misses = {}
     for idx, ans in enumerate(answers):
         if ans != corrects[idx]:
@@ -204,7 +180,6 @@ def result():
         answers=answers, corrects=corrects,
         explanations=exps, feedback=feedback
     )
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT",8080)))
