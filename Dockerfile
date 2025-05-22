@@ -1,20 +1,30 @@
-# Use the official Python image.
+# ─── Stage 1: build dependencies ─────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+# Install pip dependencies in their own layer
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ─── Stage 2: build final image ──────────────────────────────────────────────
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# 1. Install dependencies first (cached if requirements.txt unchanged)
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy installed deps from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
 
-# 2. Copy the rest of your application code
+# Copy application code (including templates/)
 COPY . .
 
-# 3. Expose the port Cloud Run expects
+# ─── DEBUG STEP: verify templates are present ─────────────────────────────────
+# (remove this RUN once you confirm templates/ is in the build)
+RUN ls -R /app
+
+# ─── Runtime config ──────────────────────────────────────────────────────────
 ENV PORT 8080
 EXPOSE 8080
 
-# 4. Launch your app with Gunicorn instead of the dev server
-#    - 2 worker processes is a reasonable default
+# Use Gunicorn for production
 CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:8080", "--workers", "2"]
