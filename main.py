@@ -91,16 +91,39 @@ def generate_block():
     session['difficulty'] = diff
 
 # Show question
+
 @app.route('/question')
 def question():
-    i, total = session['index'], session['num']
-    if i >= total:
+    # Current index and total number of questions
+    idx   = session.get('index', 0)
+    total = session.get('num', 1)
+    qs    = session.get('questions', [])
+
+    # 1) If we've answered all requested questions, show results
+    if idx >= total:
         return redirect(url_for('result'))
-    if i >= len(session['questions']):
+
+    # 2) If we’ve run out of pre-generated questions, fetch the next block
+    if idx >= len(qs):
         generate_block()
-    q = session['questions'][i]
-    progress = int((i+1)/total*100)
-    return render_template('question.html', question=q, index=i, total=total, progress=progress)
+        qs = session.get('questions', [])
+
+    # 3) If still no questions (e.g. API error), bail to results
+    if idx >= len(qs):
+        return redirect(url_for('result'))
+
+    # 4) Grab the current question and compute progress
+    question = qs[idx]
+    progress = int((idx + 1) / total * 100)
+
+    # 5) Render via Jinja
+    return render_template(
+        'question.html',
+        question=question,
+        index=idx,
+        total=total,
+        progress=progress
+    )
 
 # Handle answer
 @app.route('/answer', methods=['POST'])
