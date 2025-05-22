@@ -1,44 +1,41 @@
-name: Deploy to Cloud Run
+name: Build & Deploy to Cloud Run
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    # Step 1: Authenticate using the correct action
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    # Step 2: Set up gcloud CLI
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    # Step 3: Deploy to Cloud Run (build from source)
-    - name: Deploy to Cloud Run
-      run: |
-        gcloud run deploy hello-cloudrun \
-          --source . \
-          --region us-central1 \
-          --platform managed \
-          --allow-unauthenticated
+      - name: Configure Docker to talk to Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
+      - name: Build & push Docker image
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
 
-    # Step 4: Inject environment variable into the deployed service
-    - name: Set environment variable
-      run: |
-        gcloud run services update hello-cloudrun \
-          --region us-central1 \
-          --platform managed \
-          --update-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}"
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
+          gcloud run deploy hello-cloudrun \
+            --image $IMAGE \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
