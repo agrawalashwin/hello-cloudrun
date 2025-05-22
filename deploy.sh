@@ -4,21 +4,32 @@ set -e
 REGION=us-central1
 PROJECT_ID=$(gcloud config get-value project)
 REPO=hello-app-repo
-IMAGE_NAME=hello-app
-IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}"
+SERVICE=hello-app
+TAG=latest
 
-echo "🔧 Building image and pushing to Artifact Registry..."
+# Full image path in Artifact Registry
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${TAG}"
+
+echo "🔧 Ensuring Artifact Registry repo exists..."
 gcloud artifacts repositories create $REPO \
   --repository-format=docker \
   --location=$REGION \
   --quiet || true
 
-gcloud builds submit --tag $IMAGE
+echo "🔐 Configuring Docker credentials for Artifact Registry..."
+gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 
-echo "🚀 Deploying to Cloud Run..."
-gcloud run deploy $IMAGE_NAME \
+echo "🐳 Building Docker image (uses local layer cache)..."
+docker build \
+  --tag $IMAGE \
+  .
+
+echo "📤 Pushing image to Artifact Registry..."
+docker push $IMAGE
+
+echo "🚀 Deploying to Cloud Run ($SERVICE) from prebuilt image..."
+gcloud run deploy $SERVICE \
   --image $IMAGE \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated
-
