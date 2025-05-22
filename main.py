@@ -8,7 +8,7 @@ import openai
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
-
+ 
 # OpenAI SDK
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
