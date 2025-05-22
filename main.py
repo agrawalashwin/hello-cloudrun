@@ -4,8 +4,7 @@ import logging
 from flask import Flask, request, redirect, session, url_for
 import openai
 
-# Flask setup with explicit static folder and URL path
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+# Flask setup with explicit static folder and URL path\app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 
@@ -99,7 +98,6 @@ def start():
                 temperature=0.9,
             )
             raw = response.choices[0].message.content.strip()
-            # strip markdown fences
             if raw.startswith("```"):
                 raw = "\n".join(raw.splitlines()[1:-1])
             logging.debug("GPT raw output: %r", raw)
@@ -250,3 +248,17 @@ def result():
     <canvas id="timeChart" width="600" height="300"></canvas>
     <a href="/">Start Over</a>
   </div>
+  <script>
+    const lvlCtx = document.getElementById('difficultyChart').getContext('2d');
+    new Chart(lvlCtx, {{ type:'line', data:{{ labels:{list(range(1,len(levels)+1))},datasets:[{{label:'Difficulty',data:{levels},tension:0.3}}]}},options:{{scales:{{y:{{min:1,max:3,ticks:{{stepSize:1}}}}}}}} }});
+    const timeCtx = document.getElementById('timeChart').getContext('2d');
+    new Chart(timeCtx, {{ type:'bar', data:{{ labels:{list(range(1,len(times_sec)+1))},datasets:[{{label:'Time per Q (s)',data:{times_sec}}]}},options:{{scales:{{y:{{beginAtZero:true}}}}}} }});
+  </script>
+</body>
+</html>"""
+    except Exception as e:
+        logging.exception("Error in /result")
+        return f"<pre>/result error:\n{e}</pre>", 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
