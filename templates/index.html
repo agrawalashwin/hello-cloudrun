@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ari & Rishu's SAT Prep APP</title>
+  <style>
+    /* your CSS here */
+  </style>
+</head>
+<body>
+  <nav>
+    <img src="/static/logo.png" alt="Logo">
+    <h1>Ari & Rishu's SAT Prep APP</h1>
+  </nav>
+  <div class="quiz-box">
+    <h1>SAT Prep Quiz</h1>
+    <form action="/start" method="post">
+      <label>Topic:
+        <select name="topic">
+          <option value="language">Language</option>
+          <option value="math">Math</option>
+        </select>
+      </label>
+      <label>Grade:
+        <input type="number" name="grade" min="1" max="12" required>
+      </label>
+      <label>Number of questions:
+        <input type="number" name="num" min="1" max="10" required>
+      </label>
+      <button type="submit">Start Quiz</button>
+    </form>
+  </div>
+</body>
+</html>
