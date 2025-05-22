@@ -1,5 +1,8 @@
 import os, json, logging
-from flask import Flask, request, redirect, session, url_for, render_template
+from flask import (
+    Flask, request, redirect, session, url_for,
+    render_template, after_this_request
+)
 import openai
 
 # ─── App setup ───────────────────────────────────────────────────────────────
@@ -17,41 +20,33 @@ app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-BLOCK_SIZE = 5
+# ─── Config ──────────────────────────────────────────────────────────────────
+BLOCK_SIZE = 5    # fallback block size
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
-@app.route('/')
-def index():
-    return render_template('index.html')
+# ─── Caching static files ────────────────────────────────────────────────────
+@app.after_request
+def set_cache_headers(response):
+    # one-year cache for anything under /static/
+    if request.path.startswith("/static/"):
+        response.cache_control.max_age = 31536000
+    return response
 
-@app.route('/start', methods=['POST'])
-def start():
-    session.clear()
-    session.update({
-        'topic': request.form['topic'],
-        'grade': request.form['grade'],
-        'num':   int(request.form['num']),
-        'score':      0,
-        'index':      0,
-        'difficulty': 'medium',
-        'questions':    [],
-        'difficulty_log':[],
-        'time_log':       [],
-        'answers':        [],
-        'corrects':       [],
-        'explanations':   []
-    })
-    generate_block()
-    return redirect(url_for('question'))
+# ─── Question generation ─────────────────────────────────────────────────────
+def generate_block(count=None):
+    """
+    Generate up to `count` new questions (if provided),
+    otherwise up to BLOCK_SIZE.  Deduplicates automatically.
+    """
+    topic    = session["topic"]
+    grade    = session["grade"]
+    total    = session["num"]
+    questions = session["questions"]
+    seen     = {q["question"] for q in questions}
+    diff     = session["difficulty"]
 
-def generate_block():
-    topic = session['topic']
-    grade = session['grade']
-    total = session['num']
-    qs    = session['questions']
-    seen  = {q['question'] for q in qs}
-    diff  = session['difficulty']
-    to_gen = min(BLOCK_SIZE, total - len(qs))
+    # figure out how many to make
+    to_gen = count if (count is not None) else BLOCK_SIZE
+    to_gen = min(to_gen, total - len(questions))
     if to_gen <= 0:
         return
 
@@ -67,96 +62,138 @@ def generate_block():
         temperature=0.9,
     )
     raw = resp.choices[0].message.content.strip()
+    # strip code fences if present
     if raw.startswith("```"):
         raw = "\n".join(raw.splitlines()[1:-1])
+
     try:
         batch = json.loads(raw)
-    except json.JSONDecodeError:
-        logging.error("Batch JSON decode failed:\n%s", raw)
+    except Exception as e:
+        logging.error("Failed to parse JSON from OpenAI:\n%s", raw)
         return
 
     new_qs = []
     for q in batch:
         if (
             isinstance(q, dict)
-            and q.get('question') not in seen
-            and isinstance(q.get('choices'), list)
-            and len(q['choices']) == 4
+            and q.get("question") not in seen
+            and isinstance(q.get("choices"), list)
+            and len(q["choices"]) == 4
         ):
-            seen.add(q['question'])
+            seen.add(q["question"])
             new_qs.append(q)
-            diff = {'easy':'medium','medium':'hard','hard':'medium'}[diff]
+            # rotate difficulty
+            diff = {"easy":"medium","medium":"hard","hard":"medium"}[diff]
         if len(new_qs) >= to_gen:
             break
 
-    qs.extend(new_qs)
-    session['questions']  = qs
-    session['difficulty'] = diff
+    questions.extend(new_qs)
+    session["questions"]  = questions
+    session["difficulty"] = diff
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/start', methods=['POST'])
+def start():
+    # clear / init session
+    session.clear()
+    session.update({
+        "topic":     request.form["topic"],
+        "grade":     request.form["grade"],
+        "num":       int(request.form["num"]),
+        "score":     0,
+        "index":     0,
+        "difficulty":"medium",
+        "questions":      [],
+        "difficulty_log": [],
+        "time_log":       [],
+        "answers":        [],
+        "corrects":       [],
+        "explanations":   [],
+    })
+
+    # **Pre-generate all questions at once**:
+    generate_block(count=session["num"])
+    return redirect(url_for('question'))
+
 
 @app.route('/question')
 def question():
-    idx   = session.get('index', 0)
-    total = session.get('num',   1)
-    qs    = session.get('questions', [])
+    idx   = session.get("index",  0)
+    total = session.get("num",    1)
+    qs    = session.get("questions", [])
+
+    # done?
     if idx >= total:
         return redirect(url_for('result'))
+
+    # fallback: generate next block if somehow missing
     if idx >= len(qs):
         generate_block()
-        qs = session.get('questions', [])
+        qs = session.get("questions", [])
+
     if idx >= len(qs):
         return redirect(url_for('result'))
 
-    question = qs[idx]
-    progress = int((idx + 1) / total * 100)
+    q = qs[idx]
+    progress = int((idx+1)/total * 100)
     return render_template(
         'question.html',
-        question=question,
+        question=q,
         index=idx,
         total=total,
         progress=progress
     )
 
+
 @app.route('/answer', methods=['POST'])
 def answer():
-    i       = session['index']
-    elapsed = int(request.form.get('time', 0))
-    session['time_log'].append(elapsed)
+    i       = session["index"]
+    elapsed = int(request.form.get("time",0))
+    session["time_log"].append(elapsed)
 
-    choice  = request.form['choice']
-    q       = session['questions'][i]
-    correct = q['answer']
+    choice  = request.form["choice"]
+    q       = session["questions"][i]
+    correct = q["answer"]
 
-    session['answers'].append(choice)
-    session['corrects'].append(correct)
-    session['explanations'].append(q.get('explanation',''))
+    session["answers"].append(choice)
+    session["corrects"].append(correct)
+    session["explanations"].append(q["explanation"])
 
-    prev = session['difficulty']
+    prev = session["difficulty"]
     if choice == correct:
-        session['score'] += 1
-        diff = {'easy':'medium','medium':'hard','hard':'medium'}[prev]
+        session["score"] += 1
+        diff = {"easy":"medium","medium":"hard","hard":"medium"}[prev]
     else:
-        diff = {'easy':'medium','medium':'easy','hard':'medium'}[prev]
+        diff = {"easy":"medium","medium":"easy","hard":"medium"}[prev]
 
-    session['difficulty']     = diff
-    session['difficulty_log'].append(diff)
-    session['index'] = i + 1
+    session["difficulty"]     = diff
+    session["difficulty_log"].append(diff)
+    session["index"] = i + 1
     return redirect(url_for('question'))
+
 
 @app.route('/result')
 def result():
-    score, total = session['score'], session['num']
+    score, total = session["score"], session["num"]
     labels  = list(range(1, total+1))
-    levels  = [ {'easy':1,'medium':2,'hard':3}.get(d,2)
-                for d in session['difficulty_log'] ]
-    times   = [round(x/1000,2) for x in session['time_log']]
-    answers = session['answers']
-    corrects= session['corrects']
-    exps    = session['explanations']
+    levels  = [ {"easy":1,"medium":2,"hard":3}.get(d,2)
+                for d in session["difficulty_log"] ]
+    times   = [round(x/1000,2) for x in session["time_log"]]
+    answers = session["answers"]
+    corrects= session["corrects"]
+    exps    = session["explanations"]
 
+    # feedback
     misses = {}
     for idx, ans in enumerate(answers):
         if ans != corrects[idx]:
-            for c in session['questions'][idx]['concepts']:
+            for c in session["questions"][idx]["concepts"]:
                 misses[c] = misses.get(c,0) + 1
     feedback = sorted(misses, key=misses.get, reverse=True)[:5]
 
@@ -167,18 +204,7 @@ def result():
         answers=answers, corrects=corrects,
         explanations=exps, feedback=feedback
     )
-    
-import traceback
-from flask import got_request_exception
-
-@app.errorhandler(Exception)
-def show_debug_traceback(e):
-    # Log full traceback
-    tb = traceback.format_exc()
-    app.logger.error(tb)
-    # Show it in the browser
-    return f"<h1>Internal Server Error</h1><pre>{tb}</pre>", 500
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)))
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT",8080)))
