@@ -167,6 +167,18 @@ def result():
         answers=answers, corrects=corrects,
         explanations=exps, feedback=feedback
     )
+    
+import traceback
+from flask import got_request_exception
+
+@app.errorhandler(Exception)
+def show_debug_traceback(e):
+    # Log full traceback
+    tb = traceback.format_exc()
+    app.logger.error(tb)
+    # Show it in the browser
+    return f"<h1>Internal Server Error</h1><pre>{tb}</pre>", 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)))
