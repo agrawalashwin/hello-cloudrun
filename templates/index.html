@@ -4,59 +4,85 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ari & Rishu's SAT Prep APP</title>
-  <!-- Bootstrap CSS v5.3.2 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-  <!-- Alpine.js -->
-  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+  <!-- Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-0evHe/X+R7YkR4+Y7R17yZj+AGr2uZsE2J7cqE+7pTXKQv7l52m+jm3p5M2z4Z+8"
+    crossorigin="anonymous"
+  >
   <style>
-    /* Spinner overlay */
-    #spinner { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); display:none; align-items:center; justify-content:center; z-index:1000; }
+    body { background: #f4f4f8; }
+    .card { max-width: 600px; margin: 3rem auto; }
+    .grade-btn, .num-btn { min-width: 48px; }
   </style>
 </head>
-<body class="bg-light">
-  <div id="spinner">
-    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
-  </div>
-  <div class="container py-5" x-data>
-    <form action="/start" method="post" @submit="document.getElementById('submitBtn').disabled=true; document.getElementById('spinner').style.display='flex';">
-      <input type="hidden" name="grade" id="grade" value="3">
-      <div class="mb-4">
-        <h5>Select Grade</h5>
-        <div class="btn-group" role="group">
-          {% for g in [1,2,3,4,5,6,7,8,9,10,11,12] %}
-          <button type="button" class="btn btn-outline-primary grade-btn" @click="selectGrade({{g}})" data-val="{{g}}">{{g}}</button>
-          {% endfor %}
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">
+        <img src="/static/logo.png" alt="Logo" height="32" onerror="this.style.display='none'">
+        Ari &amp; Rishu's SAT Prep APP
+      </a>
+    </div>
+  </nav>
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h4 class="card-title mb-4">Start Your Quiz</h4>
+
+      <form action="/start" method="post">
+        <!-- Grade Selection -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Select Grade</label>
+          <div>
+            {% for g in range(1,13) %}
+            <button type="button"
+                    class="btn btn-outline-primary grade-btn me-2 mb-2"
+                    onclick="document.getElementById('grade').value='{{g}}'; clearActive('grade'); this.classList.add('active');">
+              {{g}}
+            </button>
+            {% endfor %}
+            <input type="hidden" name="grade" id="grade" required>
+          </div>
         </div>
-      </div>
-      <input type="hidden" name="num" id="num" value="2">
-      <div class="mb-4">
-        <h5>Number of Questions</h5>
-        <div class="btn-group" role="group">
-          {% for n in [2,5,10,15,20,25] %}
-          <button type="button" class="btn btn-outline-primary num-btn" @click="selectNum({{n}})" data-val="{{n}}">{{n}}</button>
-          {% endfor %}
+
+        <!-- Number of Questions -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Number of Questions</label>
+          <div>
+            {% for n in [2,5,10,15,20,25] %}
+            <button type="button"
+                    class="btn btn-outline-primary num-btn me-2 mb-2"
+                    onclick="document.getElementById('num').value='{{n}}'; clearActive('num'); this.classList.add('active');">
+              {{n}}
+            </button>
+            {% endfor %}
+            <input type="hidden" name="num" id="num" required>
+          </div>
         </div>
-      </div>
-      <div class="mb-4">
-        <label class="form-label">Topic:</label>
-        <select name="topic" class="form-select">
-          <option value="language">Language</option>
-          <option value="math">Math</option>
-        </select>
-      </div>
-      <button id="submitBtn" type="submit" class="btn btn-primary">Start Quiz</button>
-    </form>
+
+        <!-- Topic -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Topic</label>
+          <select name="topic" class="form-select" required>
+            <option value="language">Language</option>
+            <option value="math">Math</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Start Quiz</button>
+      </form>
+    </div>
   </div>
+
+  <!-- Helper JS -->
   <script>
-    function selectGrade(g) {
-      document.getElementById('grade').value = g;
-      document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('active'));
-      document.querySelector(`.grade-btn[data-val="${g}"]`).classList.add('active');
-    }
-    function selectNum(n) {
-      document.getElementById('num').value = n;
-      document.querySelectorAll('.num-btn').forEach(b=>b.classList.remove('active'));
-      document.querySelector(`.num-btn[data-val="${n}"]`).classList.add('active');
+    function clearActive(group) {
+      document.querySelectorAll('.'+group+'-btn').forEach(b=>b.classList.remove('active'));
     }
   </script>
 </body>
