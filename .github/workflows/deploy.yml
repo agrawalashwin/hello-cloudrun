@@ -33,7 +33,7 @@ jobs:
           --region us-central1 \
           --platform managed \
           --allow-unauthenticated \
-          --entry-point "gunicorn app:main --bind :$PORT"
+          --entry-point "gunicorn main:app --bind :$PORT"
 
 
     # Step 4: Inject environment variable into the deployed service
