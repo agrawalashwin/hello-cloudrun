@@ -18,7 +18,6 @@ def index():
 
 @app.route('/start', methods=['POST'])
 def start():
-    # Initialize session for a new quiz
     session.clear()
     topic = request.form.get('topic', 'language')
     grade = request.form.get('grade', '3')
@@ -36,32 +35,41 @@ def start():
         'time_log': []
     })
 
-    # Pre-generate non-repeating questions
     questions = []
     seen = set()
     diff = session['difficulty']
     while len(questions) < num:
         prompt = (
-            f"Generate 1 {diff} SAT-style multiple choice question for grade {grade} focusing on {topic}. "
-            "Return ONLY the JSON object with keys 'question','choices','answer','concepts'."
+            f"Generate 1 {diff} SAT-style multiple choice question for a grade {grade} student "
+            f"focusing on {topic}. "
+            "Return exactly a JSON object with four keys:\n"
+            "  • question: the question text (string)\n"
+            "  • choices: a list of 4 full answer texts (no 'A.'/'B.' prefixes)\n"
+            "  • answer: the correct answer text (must match one element of choices)\n"
+            "  • concepts: a list of concept names tested\n"
+            "Return nothing else—just raw JSON."
         )
-        response = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model="gpt-4.1-mini-2025-04-14",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
-        raw = response.choices[0].message.content.strip()
+        raw = resp.choices[0].message.content.strip()
         if raw.startswith("```"):
             raw = "\n".join(raw.splitlines()[1:-1])
         try:
             q = json.loads(raw)
         except json.JSONDecodeError:
+            logging.error("Bad JSON, retrying:\n%s", raw)
             continue
+
         text = q.get('question')
-        if text and text not in seen:
+        if text and text not in seen and isinstance(q.get('choices'), list) and len(q['choices']) == 4:
             seen.add(text)
             questions.append(q)
+            # rotate difficulty for next question
             diff = {'easy':'medium','medium':'hard','hard':'medium'}[diff]
+
     session['questions'] = questions
     return redirect(url_for('question'))
 
