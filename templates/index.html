@@ -1,48 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> <!-- same head + CSS -->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ari & Rishu's SAT Prep APP</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Alpine.js -->
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <style>
+    /* Spinner overlay */
+    #spinner { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); display:none; align-items:center; justify-content:center; z-index:1000; }
+  </style>
+</head>
+<body class="bg-light">
+  <div id="spinner" class="d-flex">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+  </div>
+  <div class="container py-5" x-data>
+    <form action="/start" method="post" @submit="document.getElementById('submitBtn').disabled = true; document.getElementById('spinner').style.display = 'flex';">
+      <input type="hidden" name="grade" id="grade" value="3">
+      <div class="mb-4">
+        <h5>Select Grade</h5>
+        <div class="btn-group" role="group">
+          {% for g in [1,2,3,4,5] %}
+          <button type="button" class="btn btn-outline-primary grade-btn" :class="{'active': grade == '{{g}}'}" @click="selectGrade({{g}})" data-val="{{g}}">{{g}}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <input type="hidden" name="num" id="num" value="2">
+      <div class="mb-4">
+        <h5>Number of Questions</h5>
+        <div class="btn-group" role="group">
+          {% for n in [2,5,10,15,20,25] %}
+          <button type="button" class="btn btn-outline-primary num-btn" @click="selectNum({{n}})" data-val="{{n}}">{{n}}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Topic:</label>
+        <select name="topic" class="form-select">
+          <option value="language">Language</option>
+          <option value="math">Math</option>
+        </select>
+      </div>
+      <button id="submitBtn" type="submit" class="btn btn-primary">Start Quiz</button>
+    </form>
+  </div>
   <script>
     function selectGrade(g) {
       document.getElementById('grade').value = g;
       document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('active'));
-      document.querySelector('.grade-btn[data-val="'+g+'"]').classList.add('active');
+      document.querySelector(`.grade-btn[data-val="${g}"]`).classList.add('active');
     }
     function selectNum(n) {
       document.getElementById('num').value = n;
       document.querySelectorAll('.num-btn').forEach(b=>b.classList.remove('active'));
-      document.querySelector('.num-btn[data-val="'+n+'"]').classList.add('active');
-    }
-    function showSpinner(btn) {
-      btn.disabled=true;
-      document.getElementById('spinner').style.display='flex';
+      document.querySelector(`.num-btn[data-val="${n}"]`).classList.add('active');
     }
   </script>
-</head>
-<body>
-  <div id="spinner" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);align-items:center;justify-content:center;z-index:1000;">
-    <div style="border:8px solid #f3f3f3;border-top:8px solid #007BFF;border-radius:50%;width:60px;height:60px;animation:spin 1s linear infinite;"></div>
-  </div>
-  <form action="/start" method="post" onsubmit="showSpinner(this.querySelector('button'))">
-    <input type="hidden" name="grade" id="grade" value="3">
-    <div>
-      <h3>Select Grade</h3>
-      {% for g in [1,2,3,4,5] %}
-        <button type="button" onclick="selectGrade({{g}})" class="grade-btn" data-val="{{g}}">{{g}}</button>
-      {% endfor %}
-    </div>
-    <input type="hidden" name="num" id="num" value="2">
-    <div>
-      <h3>Number of Questions</h3>
-      {% for n in [2,5,10,15,20,25] %}
-        <button type="button" onclick="selectNum({{n}})" class="num-btn" data-val="{{n}}">{{n}}</button>
-      {% endfor %}
-    </div>
-    <div>
-      <label>Topic:
-        <select name="topic"><option value="language">Language</option><option value="math">Math</option></select>
-      </label>
-    </div>
-    <button type="submit">Start Quiz</button>
-  </form>
 </body>
 </html>
