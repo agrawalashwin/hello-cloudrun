@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Quiz homepage template
-INDEX_HTML = '''
+INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,7 +36,7 @@ INDEX_HTML = '''
   <nav>
     <img src="/static/logo.png" alt="Logo" onerror="this.style.display='none'">
     <h1>Ari & Rishu's SAT Prep APP</h1>
-    <span></span> <!-- placeholder for balanced flex -->
+    <span></span>
   </nav>
   <div class="quiz-box">
     <h1>SAT Prep Quiz</h1>
@@ -58,7 +58,7 @@ INDEX_HTML = '''
   </div>
 </body>
 </html>
-'''
+"""
 
 @app.route('/')
 def index():
@@ -113,7 +113,6 @@ def start():
             if qtext and qtext not in seen:
                 seen.add(qtext)
                 questions.append(data)
-                # rotate difficulty
                 difficulty = {'easy':'medium','medium':'hard','hard':'medium'}[difficulty]
         session['questions'] = questions
         return redirect(url_for('question'))
@@ -132,7 +131,7 @@ def question():
         data = session['questions'][idx]
         progress = int((idx + 1) / num * 100)
 
-        html = f'''<!DOCTYPE html>
+        html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -141,25 +140,23 @@ def question():
   <script>
     let startTime;
     document.addEventListener('DOMContentLoaded', () => {{ startTime = Date.now(); }});
-    function recordTime() {{
-      document.getElementById('time').value = Date.now() - startTime;
-    }}
+    function recordTime() {{ document.getElementById('time').value = Date.now() - startTime; }}
   </script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding:0; }
-    nav { display: flex; align-items: center; justify-content: space-between; padding: 1em; background: #007BFF; color: #fff; position: sticky; top:0; z-index:100; }
-    nav img { max-height: 32px; width: auto; }
-    nav h1 { font-size: 1em; margin: 0; flex-grow: 1; text-align: center; }
-    nav .timer { font-size: 1em; }
-    .quiz-box { background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: 3em auto 2em; }
-    .progress-bar { background: #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 1em; }
-    .progress { width: {progress}%; background: #28a745; height: 20px; }
-    h2 { font-size: 1.5em; margin-bottom: 1em; }
-    label { font-size: 1.1em; display: block; text-align: left; padding: 0.5em; }
-    input[type="radio"] { margin-right: 10px; }
-    button { margin-top: 1em; font-size: 1.1em; padding: 10px 20px; background: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
-    .concept-box { background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }
+    body {{ font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding:0; }}
+    nav {{ display: flex; align-items: center; justify-content: space-between; padding: 1em; background: #007BFF; color: #fff; position: sticky; top:0; z-index:100; }}
+    nav img {{ max-height: 32px; width: auto; }}
+    nav h1 {{ font-size: 1em; margin: 0; flex-grow: 1; text-align: center; }}
+    nav .timer {{ font-size: 1em; }}
+    .quiz-box {{ background: white; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: 3em auto 2em; }}
+    .progress-bar {{ background: #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 1em; }}
+    .progress {{ width: {progress}%; background: #28a745; height: 20px; }}
+    h2 {{ font-size: 1.5em; margin-bottom: 1em; }}
+    label {{ font-size: 1.1em; display: block; text-align: left; padding: 0.5em; }}
+    input[type="radio"] {{ margin-right: 10px; }}
+    button {{ margin-top: 1em; font-size: 1.1em; padding: 10px 20px; background: #007BFF; color: white; border: none; border-radius: 6px; cursor: pointer; }}
+    button:hover {{ background-color: #0056b3; }}
+    .concept-box {{ background: #e9ecef; padding: 0.5em; border-radius: 6px; margin: 1em 0; text-align: left; }}
   </style>
 </head>
 <body>
@@ -175,22 +172,22 @@ def question():
     <div class="concept-box"><strong>Concepts:</strong> {', '.join(data.get('concepts', []))}</div>
     <form action="/answer" method="post" onsubmit="recordTime()">
       <input type="hidden" name="time" id="time" value="0">
-'''  
-        for c in data['choices']:
-            html += f'<label><input type="radio" name="choice" value="{c}" required> {c}</label>'
-        html += '''
+"""
+        for choice in data['choices']:
+            html += f'<label><input type="radio" name="choice" value="{choice}" required> {choice}</label>'
+        html += """
       <button type="submit">Submit</button>
     </form>
   </div>
   <script>
     const display = document.querySelector('nav .timer');
-    setInterval(() => {
+    setInterval(() => {{
       const elapsed = Math.floor((Date.now() - startTime)/1000);
       display.textContent = `${elapsed}s`;
-    }, 500);
+    }}, 500);
   </script>
 </body>
-</html>'''
+</html>"""
         return html
     except Exception as e:
         logging.exception("Error in /question")
@@ -207,7 +204,6 @@ def answer():
         correct = session['questions'][idx]['answer']
         if choice == correct:
             session['score'] += 1
-        # update difficulty
         difficulty = 'hard' if choice == correct else 'easy'
         session['difficulty_log'].append(difficulty)
 
@@ -225,7 +221,7 @@ def result():
         levels = [ {"easy":1,"medium":2,"hard":3}[d] for d in session['difficulty_log'] or ["medium"]*total ]
         times_sec = [round(t/1000,2) for t in session['time_log'] or [0]*total]
 
-        return f'''<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -254,17 +250,3 @@ def result():
     <canvas id="timeChart" width="600" height="300"></canvas>
     <a href="/">Start Over</a>
   </div>
-  <script>
-    const lvlCtx = document.getElementById('difficultyChart').getContext('2d');
-    new Chart(lvlCtx, {{ type:'line', data:{{ labels:{list(range(1,len(levels)+1))},datasets:[{{label:'Difficulty',data:{levels},tension:0.3}}]}},options:{{scales:{{y:{{min:1,max:3,ticks:{{stepSize:1}}}}}}}} }});
-    const timeCtx = document.getElementById('timeChart').getContext('2d');
-    new Chart(timeCtx, {{ type:'bar', data:{{ labels:{list(range(1,len(times_sec)+1))},datasets:[{{label:'Time (s)',data:{times_sec}}]}}, options:{{scales:{{ y:{{beginAtZero:true}}}}}} }});
-  </script>
-</body>
-</html>'''
-    except Exception as e:
-        logging.exception("Error in /result")
-        return f"<pre>/result error:\n{e}</pre>", 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
