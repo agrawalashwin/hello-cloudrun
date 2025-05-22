@@ -12,6 +12,7 @@
     integrity="sha384-0evHe/X+R7YkR4+Y7R17yZj+AGr2uZsE2J7cqE+7pTXKQv7l52m+jm3p5M2z4Z+8"
     crossorigin="anonymous"
   >
+
   <style>
     body { background: #f4f4f8; }
     .card { max-width: 600px; margin: 3rem auto; }
@@ -19,31 +20,31 @@
   </style>
 </head>
 <body>
+
   <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <nav class="navbar navbar-dark bg-primary">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/">
+      <a class="navbar-brand text-white" href="/">
         <img src="/static/logo.png" alt="Logo" height="32" onerror="this.style.display='none'">
         Ari &amp; Rishu's SAT Prep APP
       </a>
     </div>
   </nav>
 
-  <!-- Form Card -->
+  <!-- Start Quiz Card -->
   <div class="card shadow-sm">
     <div class="card-body">
       <h4 class="card-title mb-4">Start Your Quiz</h4>
-
-      <form action="/start" method="post">
-        <!-- Grade Selection -->
+      <form action="/start" method="post" id="startForm">
+        <!-- Grade -->
         <div class="mb-3">
           <label class="form-label fw-semibold">Select Grade</label>
           <div>
             {% for g in range(1,13) %}
             <button type="button"
                     class="btn btn-outline-primary grade-btn me-2 mb-2"
-                    onclick="document.getElementById('grade').value='{{g}}'; clearActive('grade'); this.classList.add('active');">
-              {{g}}
+                    data-grade="{{ g }}">
+              {{ g }}
             </button>
             {% endfor %}
             <input type="hidden" name="grade" id="grade" required>
@@ -57,8 +58,8 @@
             {% for n in [2,5,10,15,20,25] %}
             <button type="button"
                     class="btn btn-outline-primary num-btn me-2 mb-2"
-                    onclick="document.getElementById('num').value='{{n}}'; clearActive('num'); this.classList.add('active');">
-              {{n}}
+                    data-num="{{ n }}">
+              {{ n }}
             </button>
             {% endfor %}
             <input type="hidden" name="num" id="num" required>
@@ -79,11 +80,31 @@
     </div>
   </div>
 
-  <!-- Helper JS -->
+  <!-- Initialize defaults and button behavior -->
   <script>
-    function clearActive(group) {
-      document.querySelectorAll('.'+group+'-btn').forEach(b=>b.classList.remove('active'));
-    }
+    document.addEventListener('DOMContentLoaded', function(){
+      // default selections
+      document.getElementById('grade').value = '1';
+      document.querySelector('.grade-btn[data-grade="1"]').classList.add('active');
+      document.getElementById('num').value = '5';
+      document.querySelector('.num-btn[data-num="5"]').classList.add('active');
+
+      // clickable buttons
+      document.querySelectorAll('.grade-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('grade').value = btn.dataset.grade;
+          document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+      document.querySelectorAll('.num-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('num').value = btn.dataset.num;
+          document.querySelectorAll('.num-btn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+    });
   </script>
 </body>
 </html>
