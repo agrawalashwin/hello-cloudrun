@@ -19,25 +19,25 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 3) Install & configure gcloud
+      # 3) Install gcloud SDK
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # 4) Configure Docker to push to Artifact Registry
-      - name: Configure Docker credentials
+      # 4) Configure Docker to push
+      - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      # 5) Build the Docker image (uses your Dockerfile)
+      # 5) Build & push your Dockerfile image (with gunicorn installed)
       - name: Build & push Docker image
         run: |
           IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
           docker build -t $IMAGE .
           docker push $IMAGE
 
-      # 6) Deploy that image to Cloud Run
+      # 6) Deploy that exact image (no buildpacks!)
       - name: Deploy to Cloud Run
         run: |
           IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/hello-app-repo/hello-app:${{ github.sha }}"
