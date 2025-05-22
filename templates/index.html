@@ -18,9 +18,9 @@
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
     <div class="container-fluid">
-      <a class="navbar-brand" href="{{ url_for('index') }}">
-        <img src="{{ url_for('static', filename='logo.png') }}" 
-             width="30" height="30" class="d-inline-block align-text-top">
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+        <img src="{{ url_for('static', filename='logo.png') }}"
+             width="30" height="30" class="me-2">
         Ari & Rishu’s SAT Prep APP
       </a>
     </div>
@@ -38,8 +38,11 @@
                 <label class="form-label">Select Grade</label>
                 <div class="btn-group" role="group">
                   {% for g in range(1,13) %}
-                    <input type="radio" class="btn-check" name="grade" id="grade{{g}}" value="{{g}}" {% if g==1 %}checked{% endif %}>
-                    <label class="btn btn-outline-secondary" for="grade{{g}}">{{g}}</label>
+                    <input type="radio" class="btn-check" name="grade"
+                           id="grade{{g}}" value="{{g}}"
+                           {% if g==1 %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary"
+                           for="grade{{g}}">{{g}}</label>
                   {% endfor %}
                 </div>
               </div>
@@ -49,8 +52,11 @@
                 <label class="form-label">Number of Questions</label>
                 <div class="btn-group" role="group">
                   {% for n in [2,5,10,15,20,25] %}
-                    <input type="radio" class="btn-check" name="num" id="num{{n}}" value="{{n}}" {% if n==5 %}checked{% endif %}>
-                    <label class="btn btn-outline-secondary" for="num{{n}}">{{n}}</label>
+                    <input type="radio" class="btn-check" name="num"
+                           id="num{{n}}" value="{{n}}"
+                           {% if n==5 %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary"
+                           for="num{{n}}">{{n}}</label>
                   {% endfor %}
                 </div>
               </div>
@@ -65,7 +71,9 @@
               </div>
 
               <div class="text-center">
-                <button type="submit" class="btn btn-primary btn-lg">Start Quiz</button>
+                <button type="submit" class="btn btn-primary btn-lg">
+                  Start Quiz
+                </button>
               </div>
             </form>
           </div>
@@ -75,8 +83,10 @@
   </div>
 
   <!-- Bootstrap JS bundle -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-          integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+Pm4YmOWJRv9jj3GYdg/kZy3QFtkB"
-          crossorigin="anonymous"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+Pm4YmOWJRv9jj3GYdg/kZy3QFtkB"
+    crossorigin="anonymous"
+  ></script>
 </body>
 </html>
