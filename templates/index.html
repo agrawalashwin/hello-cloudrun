@@ -22,7 +22,6 @@
     </div>
   </nav>
 
-  <!-- Start Quiz Form -->
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-md-8">
@@ -59,12 +58,21 @@
               </div>
 
               <!-- Topic selector -->
-              <div class="mb-4">
+              <div class="mb-3">
                 <label for="topic" class="form-label">Topic</label>
                 <select id="topic" name="topic" class="form-select">
                   <option value="Language">Language</option>
                   <option value="Math">Math</option>
                 </select>
+              </div>
+
+              <!-- Optional sub-topic input -->
+              <div class="mb-4">
+                <label for="subtopic" class="form-label">Optional: Specific focus</label>
+                <input type="text" id="subtopic" name="subtopic"
+                       class="form-control"
+                       placeholder="e.g. fractions, fill-in-the-blank">
+                <div class="form-text">Leave blank to skip.</div>
               </div>
 
               <div class="text-center">
