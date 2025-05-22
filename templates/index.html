@@ -3,108 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ari & Rishu's SAT Prep APP</title>
+  <title>Ari & Rishu’s SAT Prep APP</title>
 
-  <!-- Bootstrap CSS -->
+  <!-- Bootstrap 5 CSS -->
   <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
     rel="stylesheet"
-    integrity="sha384-0evHe/X+R7YkR4+Y7R17yZj+AGr2uZsE2J7cqE+7pTXKQv7l52m+jm3p5M2z4Z+8"
+    integrity="sha384-9ndCyUa6Ytns6bK6bZrFhjVgqW7xjQ3Bqj6EdZW1x0vqXW/P6cqeqYmFmX5NnN03"
     crossorigin="anonymous"
   >
-
-  <style>
-    body { background: #f4f4f8; }
-    .card { max-width: 600px; margin: 3rem auto; }
-    .grade-btn, .num-btn { min-width: 48px; }
-  </style>
 </head>
-<body>
+<body class="bg-light">
 
   <!-- Navbar -->
-  <nav class="navbar navbar-dark bg-primary">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
     <div class="container-fluid">
-      <a class="navbar-brand text-white" href="/">
-        <img src="/static/logo.png" alt="Logo" height="32" onerror="this.style.display='none'">
-        Ari &amp; Rishu's SAT Prep APP
+      <a class="navbar-brand" href="{{ url_for('index') }}">
+        <img src="{{ url_for('static', filename='logo.png') }}" 
+             width="30" height="30" class="d-inline-block align-text-top">
+        Ari & Rishu’s SAT Prep APP
       </a>
     </div>
   </nav>
 
-  <!-- Start Quiz Card -->
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <h4 class="card-title mb-4">Start Your Quiz</h4>
-      <form action="/start" method="post" id="startForm">
-        <!-- Grade -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Select Grade</label>
-          <div>
-            {% for g in range(1,13) %}
-            <button type="button"
-                    class="btn btn-outline-primary grade-btn me-2 mb-2"
-                    data-grade="{{ g }}">
-              {{ g }}
-            </button>
-            {% endfor %}
-            <input type="hidden" name="grade" id="grade" required>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="card-title text-center mb-4">Start Your Quiz</h2>
+            <form action="{{ url_for('start') }}" method="post">
+              <!-- Grade buttons -->
+              <div class="mb-3">
+                <label class="form-label">Select Grade</label>
+                <div class="btn-group" role="group">
+                  {% for g in range(1,13) %}
+                    <input type="radio" class="btn-check" name="grade" id="grade{{g}}" value="{{g}}" {% if g==1 %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="grade{{g}}">{{g}}</label>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Number of questions -->
+              <div class="mb-3">
+                <label class="form-label">Number of Questions</label>
+                <div class="btn-group" role="group">
+                  {% for n in [2,5,10,15,20,25] %}
+                    <input type="radio" class="btn-check" name="num" id="num{{n}}" value="{{n}}" {% if n==5 %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary" for="num{{n}}">{{n}}</label>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Topic select -->
+              <div class="mb-4">
+                <label for="topic" class="form-label">Topic</label>
+                <select id="topic" name="topic" class="form-select">
+                  <option value="Language">Language</option>
+                  <option value="Math">Math</option>
+                </select>
+              </div>
+
+              <div class="text-center">
+                <button type="submit" class="btn btn-primary btn-lg">Start Quiz</button>
+              </div>
+            </form>
           </div>
         </div>
-
-        <!-- Number of Questions -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Number of Questions</label>
-          <div>
-            {% for n in [2,5,10,15,20,25] %}
-            <button type="button"
-                    class="btn btn-outline-primary num-btn me-2 mb-2"
-                    data-num="{{ n }}">
-              {{ n }}
-            </button>
-            {% endfor %}
-            <input type="hidden" name="num" id="num" required>
-          </div>
-        </div>
-
-        <!-- Topic -->
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Topic</label>
-          <select name="topic" class="form-select" required>
-            <option value="language">Language</option>
-            <option value="math">Math</option>
-          </select>
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100">Start Quiz</button>
-      </form>
+      </div>
     </div>
   </div>
 
-  <!-- Initialize defaults and button behavior -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function(){
-      // default selections
-      document.getElementById('grade').value = '1';
-      document.querySelector('.grade-btn[data-grade="1"]').classList.add('active');
-      document.getElementById('num').value = '5';
-      document.querySelector('.num-btn[data-num="5"]').classList.add('active');
-
-      // clickable buttons
-      document.querySelectorAll('.grade-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.getElementById('grade').value = btn.dataset.grade;
-          document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('active'));
-          btn.classList.add('active');
-        });
-      });
-      document.querySelectorAll('.num-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.getElementById('num').value = btn.dataset.num;
-          document.querySelectorAll('.num-btn').forEach(b=>b.classList.remove('active'));
-          btn.classList.add('active');
-        });
-      });
-    });
-  </script>
+  <!-- Bootstrap JS bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+Pm4YmOWJRv9jj3GYdg/kZy3QFtkB"
+          crossorigin="anonymous"></script>
 </body>
 </html>
