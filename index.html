@@ -1,0 +1,35 @@
+"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ari & Rishu's SAT Prep APP</title>
+  <style>
+    body { font-family: 'Segoe UI', background: #f4f4f8; margin:0; padding:0; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding:1em; background:#007BFF; color:#fff; }
+    nav img { max-height: 40px; }
+    nav h1 { flex:1; text-align:center; margin:0; font-size:1.2em; }
+    .quiz-box { background:#fff; padding:2em; border-radius:12px; max-width:600px; margin:2em auto; }
+    label, select, input, button { width:100%; padding:8px; margin-top:10px; font-size:1em; }
+    button { background:#007BFF; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <nav>
+    <img src="/static/logo.png" alt="Logo">
+    <h1>Ari & Rishu's SAT Prep APP</h1>
+    <span></span>
+  </nav>
+  <div class="quiz-box">
+    <h1>SAT Prep Quiz</h1>
+    <form action="/start" method="post">
+      <label>Topic:<select name="topic"><option value="language">Language</option><option value="math">Math</option></select></label>
+      <label>Grade:<input type="number" name="grade" min="1" max="12" required></label>
+      <label>Number of questions:<input type="number" name="num" min="1" max="10" required></label>
+      <button type="submit">Start Quiz</button>
+    </form>
+  </div>
+</body>
+</html>
+"""
