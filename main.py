@@ -1,24 +1,28 @@
-import os, json, logging
-from flask import (
-    Flask, request, redirect,
-    session, url_for, render_template
-)
+import os
+import json
+import logging
+from flask import Flask, request, redirect, session, url_for, render_template
 import openai
 
-# Config
-BLOCK_SIZE = 5
+# ─── App setup: absolute paths for templates/static ───────────────────────────
+BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR    = os.path.join(BASE_DIR, "static")
 
-# App setup – explicit template_folder
 app = Flask(
     __name__,
-    template_folder="templates",
-    static_folder="static",
-    static_url_path="/static"
+    template_folder=TEMPLATES_DIR,
+    static_folder=STATIC_DIR,
+    static_url_path="/static",
 )
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# ─── Config ──────────────────────────────────────────────────────────────────
+BLOCK_SIZE = 5
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -47,12 +51,12 @@ def start():
 
 
 def generate_block():
-    topic   = session['topic']
-    grade   = session['grade']
-    total   = session['num']
-    qs      = session['questions']
-    seen    = {q['question'] for q in qs}
-    diff    = session['difficulty']
+    topic = session['topic']
+    grade = session['grade']
+    total = session['num']
+    qs    = session['questions']
+    seen  = {q['question'] for q in qs}
+    diff  = session['difficulty']
 
     to_gen = min(BLOCK_SIZE, total - len(qs))
     if to_gen <= 0:
@@ -127,20 +131,19 @@ def question():
 
 @app.route('/answer', methods=['POST'])
 def answer():
-    i      = session['index']
-    elapsed= int(request.form.get('time', 0))
+    i       = session['index']
+    elapsed = int(request.form.get('time', 0))
     session['time_log'].append(elapsed)
 
-    choice = request.form['choice']
-    q      = session['questions'][i]
-    correct= q['answer']
+    choice  = request.form['choice']
+    q       = session['questions'][i]
+    correct = q['answer']
 
     session['answers'].append(choice)
     session['corrects'].append(correct)
     session['explanations'].append(q.get('explanation',''))
 
-    # Adaptive difficulty – cycle easy→medium→hard
-    prev   = session['difficulty']
+    prev = session['difficulty']
     if choice == correct:
         session['score'] += 1
         diff = {'easy':'medium','medium':'hard','hard':'medium'}[prev]
@@ -156,13 +159,13 @@ def answer():
 @app.route('/result')
 def result():
     score, total = session['score'], session['num']
-    labels = list(range(1, total+1))
-    levels = [ {'easy':1,'medium':2,'hard':3}.get(d,2) 
-               for d in session['difficulty_log'] ]
-    times  = [round(x/1000,2) for x in session['time_log']]
-    answers, corrects, exps = (
-        session['answers'], session['corrects'], session['explanations']
-    )
+    labels       = list(range(1, total+1))
+    levels       = [ {'easy':1,'medium':2,'hard':3}.get(d,2) 
+                     for d in session['difficulty_log'] ]
+    times        = [round(x/1000,2) for x in session['time_log']]
+    answers      = session['answers']
+    corrects     = session['corrects']
+    exps         = session['explanations']
 
     misses = {}
     for idx, ans in enumerate(answers):
