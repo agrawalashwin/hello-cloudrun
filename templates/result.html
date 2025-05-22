@@ -1,50 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Results</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding:0; text-align:center; }
-    nav { display: flex; align-items: center; padding: 1em; background: #007BFF; color: #fff; }
-    nav img { max-height: 32px; margin-right: 0.5em; }
-    nav h1 { flex-grow: 1; text-align: center; margin:0; font-size:1em; }
-    .content { padding: 2em; }
-    canvas { max-width: 600px; margin: 2em auto; display: block; }
-    a { display: inline-block; margin-top: 2em; text-decoration: none; color: #007BFF; font-size:1.1em; }
-  </style>
-</head>
-<body>
-  <nav>
-    <img src="/static/logo.png" alt="Logo">
-    <h1>Ari & Rishu's SAT Prep APP</h1>
-    <span></span>
-  </nav>
+<!DOCTYPE html><html lang="en"><head>…CSS…</head><body>
+  <!-- nav etc. -->
   <div class="content">
-    <h1>Your Score: {{ score }} / {{ total }}</h1>
-    <canvas id="difficultyChart" width="600" height="300"></canvas>
-    <canvas id="timeChart" width="600" height="300"></canvas>
-    <a href="/">Start Over</a>
+    <h1>Your Score: {{score}} / {{total}}</h1>
+    <table>
+      <thead><tr><th>#</th><th>Time(s)</th><th>Your Ans</th><th>Correct</th><th>Explanation</th></tr></thead>
+      <tbody>
+        {% for i in range(total) %}
+        <tr>
+          <td>{{i+1}}</td>
+          <td>{{times[i]}}</td>
+          <td>{{answers[i]}}</td>
+          <td>{{corrects[i]}}</td>
+          <td>{{explanations[i]}}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="feedback">
+      <h3>Areas to Practice:</h3>
+      <ul>{% for f in feedback %}<li>{{f}}</li>{% endfor %}</ul>
+    </div>
+    <a href="/">Restart</a>
   </div>
-  <script>
-    const labels = {{ labels | tojson }};
-    const levels = {{ levels | tojson }};
-    const times = {{ times | tojson }};
-    new Chart(
-      document.getElementById('difficultyChart').getContext('2d'),
-      { type: 'line',
-        data: { labels, datasets: [{ label: 'Difficulty (1-easy→3-hard)', data: levels, tension: 0.3 }] },
-        options: { scales: { y: { beginAtZero: true, min: 1, max: 3, ticks: { stepSize: 1 } } } }
-      }
-    );
-    new Chart(
-      document.getElementById('timeChart').getContext('2d'),
-      { type: 'bar',
-        data: { labels, datasets: [{ label: 'Time per Q (s)', data: times }] },
-        options: { scales: { y: { beginAtZero: true } } }
-      }
-    );
-  </script>
-</body>
-</html>
+</body></html>
