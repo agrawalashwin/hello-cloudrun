@@ -3,7 +3,7 @@ import json
 import logging
 from flask import Flask, request, redirect, session, url_for
 import openai
-
+ 
 # Flask setup
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
