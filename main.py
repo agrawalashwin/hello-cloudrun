@@ -1,57 +1,55 @@
-import os
-import json
-import logging
+import os, json, logging
 from flask import Flask, request, redirect, session, url_for, render_template
 import openai
 
-# Flask app setup
+# Config
+BLOCK_SIZE = 5
+
+# App setup
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
-
-# OpenAI client
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# Home
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# Initialize quiz
 @app.route('/start', methods=['POST'])
 def start():
     session.clear()
-    topic = request.form.get('topic', 'language')
-    grade = request.form.get('grade', '3')
-    num = int(request.form.get('num', 1))
-
     session.update({
-        'topic': topic,
-        'grade': grade,
-        'num': num,
+        'topic': request.form['topic'],
+        'grade': request.form['grade'],
+        'num': int(request.form['num']),
         'score': 0,
         'index': 0,
         'difficulty': 'medium',
         'questions': [],
         'difficulty_log': [],
-        'time_log': []
+        'time_log': [],
+        'answers': [],
+        'corrects': [],
+        'explanations': []
     })
+    generate_block()
+    return redirect(url_for('question'))
 
-    questions = []
-    seen = set()
-    diff = session['difficulty']
-    while len(questions) < num:
+# Generate next BLOCK_SIZE questions
+def generate_block():
+    topic, grade, total = session['topic'], session['grade'], session['num']
+    questions, seen, diff = session['questions'], {q['question'] for q in session['questions']}, session['difficulty']
+    to_gen = min(BLOCK_SIZE, total - len(questions))
+    for _ in range(to_gen):
         prompt = (
-            f"Generate 1 {diff} SAT-style multiple choice question for a grade {grade} student "
-            f"focusing on {topic}. "
-            "Return exactly a JSON object with four keys:\n"
-            "  • question: the question text (string)\n"
-            "  • choices: a list of 4 full answer texts (no 'A.'/'B.' prefixes)\n"
-            "  • answer: the correct answer text (must match one element of choices)\n"
-            "  • concepts: a list of concept names tested\n"
-            "Return nothing else—just raw JSON."
+            f"Generate 1 {diff} SAT-style multiple choice question for a grade {grade} student focusing on {topic}."
+            "Return ONLY JSON with keys:'question','choices','answer','concepts','explanation'."
         )
         resp = client.chat.completions.create(
             model="gpt-4.1-mini-2025-04-14",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role":"user","content":prompt}],
             temperature=0.9,
         )
         raw = resp.choices[0].message.content.strip()
@@ -60,70 +58,69 @@ def start():
         try:
             q = json.loads(raw)
         except json.JSONDecodeError:
-            logging.error("Bad JSON, retrying:\n%s", raw)
+            logging.error("Invalid JSON: %s", raw)
             continue
-
-        text = q.get('question')
-        if text and text not in seen and isinstance(q.get('choices'), list) and len(q['choices']) == 4:
-            seen.add(text)
+        if q.get('question') not in seen and isinstance(q.get('choices'), list) and len(q['choices'])==4:
+            seen.add(q['question'])
             questions.append(q)
-            # rotate difficulty for next question
             diff = {'easy':'medium','medium':'hard','hard':'medium'}[diff]
-
     session['questions'] = questions
-    return redirect(url_for('question'))
+    session['difficulty'] = diff
 
+# Show question
 @app.route('/question')
 def question():
-    i = session.get('index', 0)
-    total = session.get('num', 1)
+    i, total = session['index'], session['num']
     if i >= total:
         return redirect(url_for('result'))
-
+    if i >= len(session['questions']):
+        generate_block()
     q = session['questions'][i]
-    progress = int((i + 1) / total * 100)
-    return render_template(
-        'question.html',
-        question=q,
-        index=i,
-        total=total,
-        progress=progress
-    )
+    progress = int((i+1)/total*100)
+    return render_template('question.html', question=q, index=i, total=total, progress=progress)
 
+# Handle answer
 @app.route('/answer', methods=['POST'])
 def answer():
-    i = session.get('index', 0)
-    time_taken = int(request.form.get('time', 0))
-    session['time_log'].append(time_taken)
-
-    choice = request.form.get('choice')
-    correct = session['questions'][i]['answer']
+    i = session['index']
+    t = int(request.form.get('time',0))
+    session['time_log'].append(t)
+    choice = request.form['choice']
+    q = session['questions'][i]
+    correct = q['answer']
+    session['answers'].append(choice)
+    session['corrects'].append(correct)
+    session['explanations'].append(q.get('explanation',''))
     if choice == correct:
         session['score'] += 1
         diff = 'hard'
     else:
         diff = 'easy'
     session['difficulty_log'].append(diff)
-
-    session['index'] = i + 1
+    session['index'] = i+1
     return redirect(url_for('question'))
 
+# Show results
 @app.route('/result')
 def result():
-    score = session.get('score', 0)
-    total = session.get('num', 1)
-    levels = [ {'easy':1,'medium':2,'hard':3}.get(d,2) for d in session.get('difficulty_log', []) ]
-    times = [round(t/1000,2) for t in session.get('time_log', [])]
+    score, total = session['score'], session['num']
     labels = list(range(1, total+1))
+    levels = [ {'easy':1,'medium':2,'hard':3}.get(d,2) for d in session['difficulty_log'] ]
+    times = [round(x/1000,2) for x in session['time_log']]
+    answers = session['answers']; corrects=session['corrects']; exps=session['explanations']
+    # Feedback: most missed concepts
+    misses = {}
+    for idx, ch in enumerate(answers):
+        if ch != corrects[idx]:
+            for c in session['questions'][idx]['concepts']:
+                misses[c] = misses.get(c,0) + 1
+    feedback = sorted(misses, key=misses.get, reverse=True)[:5]
     return render_template(
-        'result.html',
-        score=score,
-        total=total,
-        levels=levels,
-        times=times,
-        labels=labels
+        'result.html', score=score, total=total,
+        labels=labels, levels=levels, times=times,
+        answers=answers, corrects=corrects, explanations=exps,
+        feedback=feedback
     )
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+if __name__=='__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)))
