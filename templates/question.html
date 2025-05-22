@@ -12,14 +12,9 @@
     integrity="sha384-0evHe/X+R7YkR4+Y7R17yZj+AGr2uZsE2J7cqE+7pTXKQv7l52m+jm3p5M2z4Z+8"
     crossorigin="anonymous"
   >
-
   <style>
     body { background: #f4f4f8; }
-    .quiz-box {
-      background: #fff; padding: 2rem; border-radius: .5rem;
-      box-shadow: 0 0 .5rem rgba(0,0,0,0.1);
-      max-width: 700px; margin: 4rem auto;
-    }
+    .quiz-card { max-width: 700px; margin: 3rem auto; }
     .spinner-overlay {
       display: none;
       position: fixed; top:0; left:0;
@@ -31,78 +26,59 @@
   </style>
 </head>
 <body>
-
-  <!-- Single Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-primary">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/">
-        <img src="/static/logo.png" alt="Logo" height="32" onerror="this.style.display='none'">
-        Ari &amp; Rishu's SAT Prep APP
-      </a>
-      <span class="navbar-text text-white">
-        Question {{ index+1 }} of {{ total }}
-      </span>
+      <a class="navbar-brand text-white" href="/">Ari &amp; Rishu's SAT Prep APP</a>
+      <span class="navbar-text text-white">Q {{ index+1 }} / {{ total }}</span>
     </div>
   </nav>
 
-  <!-- Spinner Overlay (hidden until submit) -->
+  <!-- Spinner -->
   <div id="spinner" class="spinner-overlay d-flex">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Loading…</span>
     </div>
   </div>
 
-  <div class="quiz-box">
-    <!-- Progress bar -->
-    <div class="progress mb-3">
-      <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;"></div>
-    </div>
-
-    <!-- Question Text -->
-    <h2 style="white-space: pre-wrap;">{{ question.question }}</h2>
-    <p class="text-muted small">Concepts: {{ question.concepts | join(', ') }}</p>
-
-    <!-- Answer Form -->
-    <form id="answerForm" action="/answer" method="post">
-      <!-- hidden time field -->
-      <input type="hidden" name="time" value="0">
-
-      {% for c in question.choices %}
-      <div class="form-check">
-        <input
-          class="form-check-input"
-          type="radio"
-          name="choice"
-          id="opt{{ loop.index }}"
-          value="{{ c|e }}"
-          required
-        >
-        <label class="form-check-label" for="opt{{ loop.index }}">
-          {{ c }}
-        </label>
+  <div class="card quiz-card shadow-sm">
+    <div class="card-body">
+      <!-- Progress Bar -->
+      <div class="progress mb-3">
+        <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;"></div>
       </div>
-      {% endfor %}
 
-      <button type="submit" class="btn btn-primary mt-3">Submit</button>
-    </form>
+      <h5 class="card-title" style="white-space: pre-wrap;">{{ question.question }}</h5>
+      <p class="text-muted small">Concepts: {{ question.concepts | join(', ') }}</p>
+
+      <form id="answerForm" action="/answer" method="post">
+        <input type="hidden" name="time" value="0">
+
+        {% for c in question.choices %}
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" name="choice" id="opt{{ loop.index }}" 
+                 value="{{ c|e }}" required>
+          <label class="form-check-label" for="opt{{ loop.index }}">{{ c }}</label>
+        </div>
+        {% endfor %}
+
+        <button type="submit" class="btn btn-primary mt-3 w-100">Submit</button>
+      </form>
+    </div>
   </div>
 
-  <!-- Vanilla JS to handle timing, spinner, and disable -->
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       const form = document.getElementById('answerForm');
       const spinner = document.getElementById('spinner');
-      // capture quiz start
       const startTime = Date.now();
 
       form.addEventListener('submit', function(e){
-        // set time field
-        const elapsed = Date.now() - startTime;
-        form.querySelector('input[name="time"]').value = elapsed;
-
-        // disable button & show spinner
-        form.querySelector('button[type="submit"]').disabled = true;
+        // capture elapsed time
+        form.querySelector('[name="time"]').value = Date.now() - startTime;
+        // show spinner & disable button
         spinner.style.display = 'flex';
+        form.querySelector('button').disabled = true;
       });
     });
   </script>
