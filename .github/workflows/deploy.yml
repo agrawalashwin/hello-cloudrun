@@ -32,7 +32,7 @@ jobs:
           --source . \
           --region us-central1 \
           --platform managed \
-          --allow-unauthenticated
+          --allow-unauthenticated \
           --entry-point "gunicorn app:app --bind :$PORT"
 
 
