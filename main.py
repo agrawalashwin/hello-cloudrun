@@ -1,14 +1,12 @@
-import os
-import json
-import logging
+import os, json, logging
 from flask import Flask, request, redirect, session, url_for, render_template
 import openai
 
-# ─── App setup: absolute paths for templates/static ───────────────────────────
+# ─── App setup ───────────────────────────────────────────────────────────────
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR    = os.path.join(BASE_DIR, "static")
- 
+
 app = Flask(
     __name__,
     template_folder=TEMPLATES_DIR,
@@ -19,15 +17,12 @@ app.secret_key = os.environ.get("FLASK_SECRET", "devsecret")
 logging.basicConfig(level=logging.DEBUG)
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# ─── Config ──────────────────────────────────────────────────────────────────
 BLOCK_SIZE = 5
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -35,20 +30,19 @@ def start():
     session.update({
         'topic': request.form['topic'],
         'grade': request.form['grade'],
-        'num': int(request.form['num']),
-        'score': 0,
-        'index': 0,
+        'num':   int(request.form['num']),
+        'score':      0,
+        'index':      0,
         'difficulty': 'medium',
-        'questions': [],
-        'difficulty_log': [],
-        'time_log': [],
-        'answers': [],
-        'corrects': [],
-        'explanations': []
+        'questions':    [],
+        'difficulty_log':[],
+        'time_log':       [],
+        'answers':        [],
+        'corrects':       [],
+        'explanations':   []
     })
     generate_block()
     return redirect(url_for('question'))
-
 
 def generate_block():
     topic = session['topic']
@@ -57,7 +51,6 @@ def generate_block():
     qs    = session['questions']
     seen  = {q['question'] for q in qs}
     diff  = session['difficulty']
-
     to_gen = min(BLOCK_SIZE, total - len(qs))
     if to_gen <= 0:
         return
@@ -76,7 +69,6 @@ def generate_block():
     raw = resp.choices[0].message.content.strip()
     if raw.startswith("```"):
         raw = "\n".join(raw.splitlines()[1:-1])
-
     try:
         batch = json.loads(raw)
     except json.JSONDecodeError:
@@ -101,20 +93,16 @@ def generate_block():
     session['questions']  = qs
     session['difficulty'] = diff
 
-
 @app.route('/question')
 def question():
     idx   = session.get('index', 0)
-    total = session.get('num', 1)
+    total = session.get('num',   1)
     qs    = session.get('questions', [])
-
     if idx >= total:
         return redirect(url_for('result'))
-
     if idx >= len(qs):
         generate_block()
         qs = session.get('questions', [])
-
     if idx >= len(qs):
         return redirect(url_for('result'))
 
@@ -127,7 +115,6 @@ def question():
         total=total,
         progress=progress
     )
-
 
 @app.route('/answer', methods=['POST'])
 def answer():
@@ -150,22 +137,21 @@ def answer():
     else:
         diff = {'easy':'medium','medium':'easy','hard':'medium'}[prev]
 
-    session['difficulty']    = diff
+    session['difficulty']     = diff
     session['difficulty_log'].append(diff)
     session['index'] = i + 1
     return redirect(url_for('question'))
 
-
 @app.route('/result')
 def result():
     score, total = session['score'], session['num']
-    labels       = list(range(1, total+1))
-    levels       = [ {'easy':1,'medium':2,'hard':3}.get(d,2) 
-                     for d in session['difficulty_log'] ]
-    times        = [round(x/1000,2) for x in session['time_log']]
-    answers      = session['answers']
-    corrects     = session['corrects']
-    exps         = session['explanations']
+    labels  = list(range(1, total+1))
+    levels  = [ {'easy':1,'medium':2,'hard':3}.get(d,2)
+                for d in session['difficulty_log'] ]
+    times   = [round(x/1000,2) for x in session['time_log']]
+    answers = session['answers']
+    corrects= session['corrects']
+    exps    = session['explanations']
 
     misses = {}
     for idx, ans in enumerate(answers):
@@ -178,13 +164,9 @@ def result():
         'result.html',
         score=score, total=total,
         labels=labels, levels=levels, times=times,
-        answers=answers, corrects=corrects, explanations=exps,
-        feedback=feedback
+        answers=answers, corrects=corrects,
+        explanations=exps, feedback=feedback
     )
 
-
-if __name__=='__main__':
-    app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 8080))
-    )
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)))
