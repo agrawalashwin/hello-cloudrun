@@ -1,0 +1,39 @@
+"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Question {{ index+1 }} of {{ total }}</title>
+  <script>
+    let startTime;
+    document.addEventListener('DOMContentLoaded', () => { startTime = Date.now(); });
+    function recordTime() { document.getElementById('time').value = Date.now() - startTime; }
+  </script>
+  <style> /* same styles as index with progress bar */ </style>
+</head>
+<body>
+  <nav>
+    <img src="/static/logo.png"><h1>Ari & Rishu's SAT Prep APP</h1><span class="timer">0s</span>
+  </nav>
+  <div class="quiz-box">
+    <div class="prog"><div class="fill" style="width:{{ progress }}%"></div></div>
+    <h2>{{ question.question }}</h2>
+    <div><strong>Concepts:</strong> {{ question.concepts|join(', ') }}</div>
+    <form action="/answer" method="post" onsubmit="recordTime()">
+      <input type="hidden" name="time" id="time" value="0">
+      {% for c in question.choices %}
+      <label><input type="radio" name="choice" value="{{ c }}" required> {{ c }}</label>
+      {% endfor %}
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+  <script>
+    setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime)/1000);
+      document.querySelector('.timer').textContent = elapsed + 's';
+    }, 500);
+  </script>
+</body>
+</html>
+"""
