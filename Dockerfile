@@ -1,30 +1,25 @@
-# ─── Stage 1: build dependencies ─────────────────────────────────────────────
+# ─── Stage 1: install dependencies ────────────────────────────────────────────
 FROM python:3.11-slim AS builder
 
-# Install pip dependencies in their own layer
 WORKDIR /app
+
+# Install Python deps into the default location (/usr/local)
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ─── Stage 2: build final image ──────────────────────────────────────────────
+# ─── Stage 2: assemble final image ───────────────────────────────────────────
 FROM python:3.11-slim
 
-# Set working directory
+# 1) Copy everything pip installed (both libs and executables)
+COPY --from=builder /usr/local /usr/local
+
+# 2) Copy your app code (including templates/ and static/)
 WORKDIR /app
-
-# Copy installed deps from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
-
-# Copy application code (including templates/)
 COPY . .
 
-# ─── DEBUG STEP: verify templates are present ─────────────────────────────────
-# (remove this RUN once you confirm templates/ is in the build)
-RUN ls -R /app
-
-# ─── Runtime config ──────────────────────────────────────────────────────────
+# 3) Expose the port Cloud Run will use
 ENV PORT 8080
 EXPOSE 8080
 
-# Use Gunicorn for production
+# 4) Launch with Gunicorn (now actually present in /usr/local/bin)
 CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:8080", "--workers", "2"]
