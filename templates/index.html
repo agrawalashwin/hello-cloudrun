@@ -1,44 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ari & Rishu's SAT Prep APP</title>
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f4f4f8; margin:0; padding:0; }
-    nav { display: flex; align-items: center; padding: 1em; background: #007BFF; color: #fff; }
-    nav img { max-height: 40px; margin-right: 0.5em; }
-    nav h1 { font-size: 1.2em; margin: 0; flex-grow: 1; text-align: center; }
-    .quiz-box { background: #fff; padding: 2em; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 600px; margin: 2em auto; }
-    h1 { font-size: 2em; margin-bottom: 0.5em; }
-    label, select, input, button { font-size: 1.1em; margin-top: 10px; display: block; width: 100%; padding: 8px; }
-    button { background-color: #007BFF; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
-  </style>
+<head> <!-- same head + CSS -->
+  <script>
+    function selectGrade(g) {
+      document.getElementById('grade').value = g;
+      document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.grade-btn[data-val="'+g+'"]').classList.add('active');
+    }
+    function selectNum(n) {
+      document.getElementById('num').value = n;
+      document.querySelectorAll('.num-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.num-btn[data-val="'+n+'"]').classList.add('active');
+    }
+    function showSpinner(btn) {
+      btn.disabled=true;
+      document.getElementById('spinner').style.display='flex';
+    }
+  </script>
 </head>
 <body>
-  <nav>
-    <img src="/static/logo.png" alt="Logo">
-    <h1>Ari & Rishu's SAT Prep APP</h1>
-    <span></span>
-  </nav>
-  <div class="quiz-box">
-    <h1>SAT Prep Quiz</h1>
-    <form action="/start" method="post">
-      <label>Topic:
-        <select name="topic">
-          <option value="language">Language</option>
-          <option value="math">Math</option>
-        </select>
-      </label>
-      <label>Grade:
-        <input type="number" name="grade" min="1" max="12" required>
-      </label>
-      <label>Number of questions:
-        <input type="number" name="num" min="1" max="10" required>
-      </label>
-      <button type="submit">Start Quiz</button>
-    </form>
+  <div id="spinner" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);align-items:center;justify-content:center;z-index:1000;">
+    <div style="border:8px solid #f3f3f3;border-top:8px solid #007BFF;border-radius:50%;width:60px;height:60px;animation:spin 1s linear infinite;"></div>
   </div>
+  <form action="/start" method="post" onsubmit="showSpinner(this.querySelector('button'))">
+    <input type="hidden" name="grade" id="grade" value="3">
+    <div>
+      <h3>Select Grade</h3>
+      {% for g in [1,2,3,4,5] %}
+        <button type="button" onclick="selectGrade({{g}})" class="grade-btn" data-val="{{g}}">{{g}}</button>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="num" id="num" value="2">
+    <div>
+      <h3>Number of Questions</h3>
+      {% for n in [2,5,10,15,20,25] %}
+        <button type="button" onclick="selectNum({{n}})" class="num-btn" data-val="{{n}}">{{n}}</button>
+      {% endfor %}
+    </div>
+    <div>
+      <label>Topic:
+        <select name="topic"><option value="language">Language</option><option value="math">Math</option></select>
+      </label>
+    </div>
+    <button type="submit">Start Quiz</button>
+  </form>
 </body>
 </html>
